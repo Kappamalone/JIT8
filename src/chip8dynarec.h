@@ -20,21 +20,25 @@ public:
 	}
 };
 
+static constexpr int pageSize = 8; // size of cache pages
+static constexpr int pageShift = 3; // shift required to get page from address
+//TODO: ctz
+
 class Chip8Dynarec {
 public:
-	inline static fp* blockPageTable[4096 / 8]; //TODO: array of unique ptrs?
+	inline static fp* blockPageTable[4096 >> pageShift]; //TODO: array of unique ptrs?
 	inline static x64Emitter code;
 	inline static int cyclesTakenByBlock;
 
 	static int executeFunc(Chip8& core) {
-		auto& page = blockPageTable[core.pc >> 3];
+		auto& page = blockPageTable[core.pc >> pageShift];
 		if (!page) {  // if page hasn't been allocated yet, allocate
-			page = new fp[8](); //blocks could be size 4 instead of 8, but I'm not sure about alignment
+			page = new fp[pageSize](); //blocks could be size 4 instead of 8, but I'm not sure about alignment
 		}
 
-		auto& block = page[core.pc & 0x7];
+		auto& block = page[core.pc & (pageSize - 1)];
 		if (!block) { // if recompiled block doesn't exist, recompile
-			block = recompileBlock(core, core.pc >> 3);
+			block = recompileBlock(core, core.pc >> pageShift);
 		}
 
 		(*block)();
@@ -49,33 +53,80 @@ public:
 
 		while (true) {
 			auto instr = core.read<uint16_t>(core.pc);
-			auto isJump = false;
+			core.pc += 2;
+			auto breakCache = false;
 
 			switch (((instr) & 0xf000) >> 12) {
 			case 0x0:
-
 				switch (instr & 0xff) {
-
-				case 0xE0: interpreterFallback(Chip8Interpreter::CLS, core, instr); break;
+				case 0xE0: interpreterFallback(Chip8Interpreter::CLS, core, instr);                    break;
+				case 0xEE: interpreterFallback(Chip8Interpreter::RET, core, instr); breakCache = true; break;
 				default:
 					printf("Unimplemented Instruction - %04X\n", instr);
 					exit(1);
 				}
 
 				break;
-			case 0x1: interpreterFallback(Chip8Interpreter::JP, core, instr); isJump = true;     break;
-			case 0x6: interpreterFallback(Chip8Interpreter::LDVxByte, core, instr);              break;
-			case 0x7: interpreterFallback(Chip8Interpreter::ADDVxByte, core, instr);             break;
-			case 0xA: interpreterFallback(Chip8Interpreter::LDI, core, instr);                   break;
-			case 0xD: interpreterFallback(Chip8Interpreter::DXYN, core, instr);                  break;
+			case 0x1: interpreterFallback(Chip8Interpreter::JP, core, instr); breakCache = true;        break;
+			case 0x2: interpreterFallback(Chip8Interpreter::CALL, core, instr); breakCache = true;      break;
+			case 0x3: interpreterFallback(Chip8Interpreter::SEVxByte, core, instr); breakCache = true;  break;
+			case 0x4: interpreterFallback(Chip8Interpreter::SNEVxByte, core, instr); breakCache = true; break;
+			case 0x5: interpreterFallback(Chip8Interpreter::SEVxVy, core, instr); breakCache = true;    break;
+			case 0x6: interpreterFallback(Chip8Interpreter::LDVxByte, core, instr);                     break;
+			case 0x7: interpreterFallback(Chip8Interpreter::ADDVxByte, core, instr);                    break;
+			case 0x8:
+				switch (instr & 0xf) {
+				case 0x0: interpreterFallback(Chip8Interpreter::LDVxVy, core, instr);   break;
+				case 0x1: interpreterFallback(Chip8Interpreter::ORVxVy, core, instr);   break;
+				case 0x2: interpreterFallback(Chip8Interpreter::ANDVxVy, core, instr);  break;
+				case 0x3: interpreterFallback(Chip8Interpreter::XORVxVy, core, instr);  break;
+				case 0x4: interpreterFallback(Chip8Interpreter::ADDVxVy, core, instr);  break;
+				case 0x5: interpreterFallback(Chip8Interpreter::SUBVxVy, core, instr);  break;
+				case 0x6: interpreterFallback(Chip8Interpreter::SHRVxVy, core, instr);  break;
+				case 0x7: interpreterFallback(Chip8Interpreter::SUBNVxVy, core, instr); break;
+				case 0xE: interpreterFallback(Chip8Interpreter::SHLVxVy, core, instr);  break;
+				default:
+					printf("Unimplemented Instruction - %04X\n", instr);
+					exit(1);
+				}
+
+				break;
+			case 0x9: interpreterFallback(Chip8Interpreter::SNEVxVy, core, instr); breakCache = true; break;
+			case 0xA: interpreterFallback(Chip8Interpreter::LDI, core, instr);     break;
+			case 0xD: interpreterFallback(Chip8Interpreter::DXYN, core, instr);    break;
+			case 0xF:
+				switch (instr & 0xff) {
+				case 0x33:
+					interpreterFallback(Chip8Interpreter::LDBVx, core, instr);
+					blockPageTable[core.index] = nullptr;
+					blockPageTable[core.index + 1] = nullptr;
+					blockPageTable[core.index + 2] = nullptr;
+					breakCache = true;
+					break;
+				case 0x55: {
+					interpreterFallback(Chip8Interpreter::LDIVx, core, instr);
+					auto pageStart = core.index >> pageShift;
+					auto pageEnd = (core.index + ((instr & 0x0f00) >> 8)) >> pageShift;
+					for (auto i = pageStart; i <= pageEnd; i++) {
+						blockPageTable[i] = nullptr;
+					}
+					breakCache = true;
+					break;
+				}
+				case 0x65: interpreterFallback(Chip8Interpreter::LDVxI, core, instr); break;
+				default:
+					printf("Unimplemented Instruction - %04X\n", instr);
+					exit(1);
+				}
+
+				break;
 			default:
 				printf("Unimplemented Instruction - %04X\n", instr);
 				exit(1);
 			}
 
 			++cycles;
-			core.pc += 2;
-			if (core.pc >> 3 != initialPage || isJump) { //If we exceed the page boundary, dip
+			if (core.pc >> pageShift != initialPage || breakCache) { //If we exceed the page boundary, dip
 				break;
 			}
 		}
@@ -95,6 +146,21 @@ public:
 			memset(blockPageTable, 0, sizeof(blockPageTable));
 			printf("Code Cache Exhausted!!\n");
 		}
+	}
+
+	// Invalidate page given an address
+	/*static void invalidateBlock(uint16_t address) {
+		blockPageTable[address >> pageShift] = nullptr;
+	}*/
+
+	// TODO: test this before actually using
+	static void invalidateRange(uint16_t initialPage, uint16_t startAddress, uint16_t endAddress) {
+		auto startPage = startAddress >> pageShift;
+		auto endPage = startAddress >> pageShift;
+		if (initialPage >= startPage && initialPage <= endPage) {
+			throw "self modifying block!!"; //TODO: have a bool returned that stops block recompilation
+		}
+		memset(blockPageTable[startPage], 0, endPage - startPage + 1);
 	}
 
 	static void interpreterFallback(interpreterfp fallback, Chip8& core, uint16_t instr) {

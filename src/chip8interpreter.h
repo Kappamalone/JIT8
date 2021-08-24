@@ -105,7 +105,7 @@ public:
 	}
 
 	static void SEVxVy(Chip8& core, uint16_t instr) { //0x5xy0
-		if (core.gpr[x(instr)] == core.gpr[y(instr)] ) {
+		if (core.gpr[x(instr)] == core.gpr[y(instr)]) {
 			core.pc += 2;
 		}
 	}
@@ -160,7 +160,7 @@ public:
 	}
 
 	static void SNEVxVy(Chip8& core, uint16_t instr) { //0x9xy0
-		if (core.gpr[x(instr)] != core.gpr[y(instr)] ) {
+		if (core.gpr[x(instr)] != core.gpr[y(instr)]) {
 			core.pc += 2;
 		}
 	}
@@ -196,7 +196,7 @@ public:
 		auto gpr = core.gpr[x(instr)];
 		core.ram[core.index] = gpr / 100;
 		core.ram[core.index + 1] = (gpr / 10) % 10;
-		core.ram[core.index + 2] = gpr % 10 ;
+		core.ram[core.index + 2] = gpr % 10;
 	}
 
 	static void LDIVx(Chip8& core, uint16_t instr) { //0xFx55
@@ -210,7 +210,7 @@ public:
 		// for (auto i = 0; i <= x(instr); i++) {
 		// 	core.gpr[i] = core.ram[core.index + i];
 		// }
-		memcpy(core.gpr.begin(), core.ram.data() + core.index, x(instr) + 1);
+		memcpy(core.gpr.data(), core.ram.data() + core.index, x(instr) + 1);
 	}
 };
 

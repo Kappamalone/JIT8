@@ -89,7 +89,7 @@ void Chip8::runFrame() {
 		static auto cyclesToRun = speed / 60; //Just in case we allow for updating speed during runtime
 		auto cyclesRan = 0;
 
-		static auto cpuExecuteFunc = Chip8Interpreter::executeFunc;
+		static auto cpuExecuteFunc = Chip8Dynarec::executeFunc;
 		while (cyclesRan <= cyclesToRun) {
 			cyclesRan += cpuExecuteFunc(*this);
 		}
