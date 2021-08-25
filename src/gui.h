@@ -72,8 +72,6 @@ public:
 					window.close();
 			}
 
-
-			core.drawToFramebuffer(); //Draw internal display to framebuffer
 			texture.update(core.framebuffer.data()); //Draw framebuffer to screen
 			window.draw(sprite);
 			window.display();

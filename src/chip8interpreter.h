@@ -59,6 +59,7 @@ public:
 		case 0xD: Chip8Interpreter::DXYN(core, instr);    break;
 		case 0xF:
 			switch (kk(instr)) {
+			case 0x29: Chip8Interpreter::LDFVx(core, instr); break;
 			case 0x33: Chip8Interpreter::LDBVx(core, instr); break;
 			case 0x55: Chip8Interpreter::LDIVx(core, instr); break;
 			case 0x65: Chip8Interpreter::LDVxI(core, instr); break;
@@ -76,7 +77,7 @@ public:
 	};
 
 	static void CLS(Chip8& core, uint16_t instr) { //0x00E0
-		core.display.fill(0);
+		core.framebuffer.fill(0);
 	}
 
 	static void RET(Chip8& core, uint16_t instr) { //0x00EE (post-increment)
@@ -155,7 +156,7 @@ public:
 	}
 
 	static void SHLVxVy(Chip8& core, uint16_t instr) { //0x8xyE
-		core.gpr[0xf] = core.gpr[x(instr)] & 0x80;
+		core.gpr[0xf] = (core.gpr[x(instr)] & 0x80) >> 7;
 		core.gpr[x(instr)] <<= 1;
 	}
 
@@ -177,19 +178,23 @@ public:
 		for (int i = 0; i < n(instr); i++) {
 			const auto byteData = core.read<uint8_t>(core.index + i);
 			for (int j = 0; j < 8; j++) {
-				//if (xcoord >= WIDTH || ycoord >= HEIGHT) break;
-				const auto pixel = &core.display[xcoord + WIDTH * ycoord];
+				auto& pixel = *(uint32_t*)&core.framebuffer[xcoord * 4 + WIDTH * ycoord * 4];
 				const auto bitData = (byteData & (1 << (7 - j))) >> (7 - j);
-				*pixel ^= (bool)bitData;
+				pixel ^= bitData * 0xffffffff;
 
-				if (bitData && !*pixel) {
+				if (bitData && !pixel) {
 					core.gpr[0xf] = 1;
 				}
+
 				++xcoord;
 			}
 			xcoord -= 8;
 			++ycoord;
 		}
+	}
+
+	static void LDFVx(Chip8& core, uint16_t instr) { //0xFx29
+		core.index = (uint16_t)core.gpr[x(instr)] * 0x5;
 	}
 
 	static void LDBVx(Chip8& core, uint16_t instr) { //0xFx33

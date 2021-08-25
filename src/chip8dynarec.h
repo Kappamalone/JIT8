@@ -33,7 +33,7 @@ public:
 	static int executeFunc(Chip8& core) {
 		auto& page = blockPageTable[core.pc >> pageShift];
 		if (!page) {  // if page hasn't been allocated yet, allocate
-			page = new fp[pageSize](); //blocks could be size 4 instead of 8, but I'm not sure about alignment
+			page = new fp[pageSize](); //blocks could be half the size, but I'm not sure about alignment
 		}
 
 		auto& block = page[core.pc & (pageSize - 1)];
@@ -51,6 +51,9 @@ public:
 		auto emittedCode = (fp)code.getCurr();
 		auto cycles = 0;
 
+		// Function prologue
+		code.sub(rsp, 40); //permanently align stack for all function calls in block
+
 		while (true) {
 			auto instr = core.read<uint16_t>(core.pc);
 			core.pc += 2;
@@ -67,11 +70,11 @@ public:
 				}
 
 				break;
-			case 0x1: interpreterFallback(Chip8Interpreter::JP, core, instr); breakCache = true;        break;
-			case 0x2: interpreterFallback(Chip8Interpreter::CALL, core, instr); breakCache = true;      break;
-			case 0x3: interpreterFallback(Chip8Interpreter::SEVxByte, core, instr); breakCache = true;  break;
+			case 0x1: interpreterFallback(Chip8Interpreter::JP, core, instr);        breakCache = true; break;
+			case 0x2: interpreterFallback(Chip8Interpreter::CALL, core, instr);      breakCache = true; break;
+			case 0x3: interpreterFallback(Chip8Interpreter::SEVxByte, core, instr);  breakCache = true; break;
 			case 0x4: interpreterFallback(Chip8Interpreter::SNEVxByte, core, instr); breakCache = true; break;
-			case 0x5: interpreterFallback(Chip8Interpreter::SEVxVy, core, instr); breakCache = true;    break;
+			case 0x5: interpreterFallback(Chip8Interpreter::SEVxVy, core, instr);    breakCache = true; break;
 			case 0x6: interpreterFallback(Chip8Interpreter::LDVxByte, core, instr);                     break;
 			case 0x7: interpreterFallback(Chip8Interpreter::ADDVxByte, core, instr);                    break;
 			case 0x8:
@@ -96,20 +99,15 @@ public:
 			case 0xD: interpreterFallback(Chip8Interpreter::DXYN, core, instr);    break;
 			case 0xF:
 				switch (instr & 0xff) {
+				case 0x29: interpreterFallback(Chip8Interpreter::LDFVx, core, instr); break;
 				case 0x33:
 					interpreterFallback(Chip8Interpreter::LDBVx, core, instr);
-					blockPageTable[core.index] = nullptr;
-					blockPageTable[core.index + 1] = nullptr;
-					blockPageTable[core.index + 2] = nullptr;
+					invalidateRange(core.pc >> pageShift, core.index, core.index + 2);
 					breakCache = true;
 					break;
 				case 0x55: {
 					interpreterFallback(Chip8Interpreter::LDIVx, core, instr);
-					auto pageStart = core.index >> pageShift;
-					auto pageEnd = (core.index + ((instr & 0x0f00) >> 8)) >> pageShift;
-					for (auto i = pageStart; i <= pageEnd; i++) {
-						blockPageTable[i] = nullptr;
-					}
+					invalidateRange(core.pc >> pageShift, core.index, core.index + ((instr & 0x0f00) >> 8));
 					breakCache = true;
 					break;
 				}
@@ -132,6 +130,7 @@ public:
 		}
 
 		//Function epilogue
+		code.add(rsp, 40); // restore stack to original position
 		code.mov(rax, (uintptr_t)&cyclesTakenByBlock);
 		code.mov(dword[rax], cycles);
 		code.ret();
@@ -148,27 +147,19 @@ public:
 		}
 	}
 
-	// Invalidate page given an address
-	/*static void invalidateBlock(uint16_t address) {
-		blockPageTable[address >> pageShift] = nullptr;
-	}*/
-
-	// TODO: test this before actually using
 	static void invalidateRange(uint16_t initialPage, uint16_t startAddress, uint16_t endAddress) {
 		auto startPage = startAddress >> pageShift;
-		auto endPage = startAddress >> pageShift;
-		if (initialPage >= startPage && initialPage <= endPage) {
-			throw "self modifying block!!"; //TODO: have a bool returned that stops block recompilation
-		}
-		memset(blockPageTable[startPage], 0, endPage - startPage + 1);
+		auto endPage = endAddress >> pageShift;
+		/*if (initialPage >= startPage && initialPage <= endPage) {
+			throw "self modifying block!";
+		}*/
+		memset(&blockPageTable[startPage], 0, endPage - startPage + 1);
 	}
 
 	static void interpreterFallback(interpreterfp fallback, Chip8& core, uint16_t instr) {
 		code.mov(rax, (uintptr_t)fallback);
 		code.mov(rcx, (uintptr_t)&core);
 		code.mov(rdx, instr);
-		code.sub(rsp, 40);
 		code.call(rax);
-		code.add(rsp, 40);
 	}
 };

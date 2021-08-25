@@ -17,10 +17,9 @@ Chip8::Chip8(GUI* gui, int speed) {
 	ram.fill(0);
 	stack.fill(0);
 	gpr.fill(0);
-	display.fill(0);
 	framebuffer.fill(0);
 
-	loadRom("../../roms/testroms/test_opcode.ch8");
+	loadRom("../../roms/testroms/bc_test.ch8");
 	loadFonts();
 };
 
@@ -43,7 +42,7 @@ void Chip8::pingGuiThread() {
 	gui->cvRunFrame.notify_one();
 }
 
-void Chip8::loadRom(const char* path) {
+void Chip8::loadRom(const char* path) { //TODO: throw error if file not found
 	std::ifstream file(path, std::ios::binary);
 	file.read((char*)(ram.data() + 0x200), sizeof(uint8_t) * 4096 - 0x200);
 }
@@ -89,7 +88,7 @@ void Chip8::runFrame() {
 		static auto cyclesToRun = speed / 60; //Just in case we allow for updating speed during runtime
 		auto cyclesRan = 0;
 
-		static auto cpuExecuteFunc = Chip8Dynarec::executeFunc;
+		static auto cpuExecuteFunc = Chip8Interpreter::executeFunc;
 		while (cyclesRan <= cyclesToRun) {
 			cyclesRan += cpuExecuteFunc(*this);
 		}

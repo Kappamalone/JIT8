@@ -29,8 +29,6 @@ private:
 	uint8_t sound = 0; //sound timer
 	std::array<uint8_t, 16> gpr; //16 registers from V0 - VF
 
-	//Display
-	std::array<bool, WIDTH* HEIGHT> display;
 public:
 	friend class Chip8Interpreter;
 	friend class Chip8Dynarec;
@@ -48,23 +46,4 @@ public:
 	//Utility stuff
 	template <typename T>
 	auto read(uint16_t addr)->T;
-
-	void drawPixel(int x, uint32_t color) {
-		if (x < 0 || x >= WIDTH * HEIGHT)
-			throw "Drawing out of bounds!";
-
-		//This draws in abgr32, unless we byteswap
-		*(uint32_t*)&framebuffer[(x * 4)] = color;
-	}
-
-	void drawToFramebuffer() {
-		for (int i = 0; i < display.size(); i++) {
-			if (display[i]) {
-				drawPixel(i, 0xffffffff);
-			}
-			else {
-				drawPixel(i, 0);
-			}
-		}
-	}
 };

@@ -2,11 +2,6 @@
 #include <stdint.h>
 #include <gui.h>
 #include <thread>
-//#include <xbyak/xbyak.h>
-//
-//using namespace Xbyak::util;
-//
-//typedef void(*fp)();
 
 int main()
 {
