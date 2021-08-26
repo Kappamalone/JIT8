@@ -6,7 +6,7 @@
 class Chip8;
 
 using namespace Xbyak::util;
-using fp = void(*)();
+using fp = int(*)();
 using interpreterfp = void(*)(Chip8&, uint16_t);
 
 //The entire code emitter. God bless xbyak
@@ -28,9 +28,10 @@ class Chip8Dynarec {
 public:
 	inline static fp* blockPageTable[4096 >> pageShift]; //TODO: array of unique ptrs?
 	inline static x64Emitter code;
-	inline static int cyclesTakenByBlock;
 
 	static int executeFunc(Chip8& core) {
+		//printf("%04X\n", core.pc);
+
 		auto& page = blockPageTable[core.pc >> pageShift];
 		if (!page) {  // if page hasn't been allocated yet, allocate
 			page = new fp[pageSize](); //blocks could be half the size, but I'm not sure about alignment
@@ -38,15 +39,15 @@ public:
 
 		auto& block = page[core.pc & (pageSize - 1)];
 		if (!block) { // if recompiled block doesn't exist, recompile
-			block = recompileBlock(core, core.pc >> pageShift);
+			block = recompileBlock(core);
 		}
 
-		(*block)();
+		auto cyclesTakenByBlock = (*block)(); //each block returns cycles taken in eax
 
-		return cyclesTakenByBlock; //Each block has an epilogue that updates cyclesTakenByBlock
+		return cyclesTakenByBlock;
 	}
 
-	static fp recompileBlock(Chip8& core, uint16_t initialPage) {
+	static fp recompileBlock(Chip8& core) {
 		checkCodeCache();
 		auto emittedCode = (fp)code.getCurr();
 		auto cycles = 0;
@@ -66,7 +67,7 @@ public:
 				case 0xEE: interpreterFallback(Chip8Interpreter::RET, core, instr); breakCache = true; break;
 				default:
 					printf("Unimplemented Instruction - %04X\n", instr);
-					exit(1);
+					//exit(1);
 				}
 
 				break;
@@ -90,49 +91,47 @@ public:
 				case 0xE: interpreterFallback(Chip8Interpreter::SHLVxVy, core, instr);  break;
 				default:
 					printf("Unimplemented Instruction - %04X\n", instr);
-					exit(1);
+					//exit(1);
 				}
 
 				break;
 			case 0x9: interpreterFallback(Chip8Interpreter::SNEVxVy, core, instr); breakCache = true; break;
-			case 0xA: interpreterFallback(Chip8Interpreter::LDI, core, instr);     break;
-			case 0xD: interpreterFallback(Chip8Interpreter::DXYN, core, instr);    break;
+			case 0xA: interpreterFallback(Chip8Interpreter::LDI, core, instr);                        break;
+			case 0xD: interpreterFallback(Chip8Interpreter::DXYN, core, instr);                       break;
 			case 0xF:
 				switch (instr & 0xff) {
-				case 0x29: interpreterFallback(Chip8Interpreter::LDFVx, core, instr); break;
+				case 0x1E: interpreterFallback(Chip8Interpreter::ADDIVx, core, instr); break;
+				case 0x29: interpreterFallback(Chip8Interpreter::LDFVx, core, instr);  break;
 				case 0x33:
 					interpreterFallback(Chip8Interpreter::LDBVx, core, instr);
-					invalidateRange(core.pc >> pageShift, core.index, core.index + 2);
-					breakCache = true;
+					invalidateRange(core.index, core.index + 2);
 					break;
 				case 0x55: {
 					interpreterFallback(Chip8Interpreter::LDIVx, core, instr);
-					invalidateRange(core.pc >> pageShift, core.index, core.index + ((instr & 0x0f00) >> 8));
-					breakCache = true;
+					invalidateRange(core.index, core.index + ((instr & 0x0f00) >> 8));
 					break;
 				}
 				case 0x65: interpreterFallback(Chip8Interpreter::LDVxI, core, instr); break;
 				default:
 					printf("Unimplemented Instruction - %04X\n", instr);
-					exit(1);
+					//exit(1);
 				}
 
 				break;
 			default:
 				printf("Unimplemented Instruction - %04X\n", instr);
-				exit(1);
+				//exit(1);
 			}
 
 			++cycles;
-			if (core.pc >> pageShift != initialPage || breakCache) { //If we exceed the page boundary, dip
+			if ((core.pc & (pageSize - 1)) == 0 || breakCache) { //If we exceed the page boundary, dip
 				break;
 			}
 		}
 
 		//Function epilogue
 		code.add(rsp, 40); // restore stack to original position
-		code.mov(rax, (uintptr_t)&cyclesTakenByBlock);
-		code.mov(dword[rax], cycles);
+		code.mov(eax, cycles); // set return value as cycles taken in block
 		code.ret();
 
 		return emittedCode;
@@ -147,19 +146,16 @@ public:
 		}
 	}
 
-	static void invalidateRange(uint16_t initialPage, uint16_t startAddress, uint16_t endAddress) {
+	static void invalidateRange(uint16_t startAddress, uint16_t endAddress) {
 		auto startPage = startAddress >> pageShift;
 		auto endPage = endAddress >> pageShift;
-		/*if (initialPage >= startPage && initialPage <= endPage) {
-			throw "self modifying block!";
-		}*/
 		memset(&blockPageTable[startPage], 0, endPage - startPage + 1);
 	}
 
 	static void interpreterFallback(interpreterfp fallback, Chip8& core, uint16_t instr) {
 		code.mov(rax, (uintptr_t)fallback);
 		code.mov(rcx, (uintptr_t)&core);
-		code.mov(rdx, instr);
+		code.mov(edx, instr);
 		code.call(rax);
 	}
 };

@@ -16,6 +16,8 @@ public:
 	//Returns amount of cycles it took to execute
 	//On an interpreter, this is always 1
 	static int executeFunc(Chip8& core) {
+		printf("%04X\n", core.pc);
+
 		auto instr = core.read<uint16_t>(core.pc);
 		core.pc += 2;
 
@@ -26,7 +28,7 @@ public:
 			case 0xEE: Chip8Interpreter::RET(core, instr); break;
 			default:
 				printf("Unimplemented Instruction - %04X\n", instr);
-				exit(1);
+				//exit(1);
 			}
 
 			break;
@@ -50,7 +52,7 @@ public:
 			case 0xE: Chip8Interpreter::SHLVxVy(core, instr);  break;
 			default:
 				printf("Unimplemented Instruction - %04X\n", instr);
-				exit(1);
+				//exit(1);
 			}
 
 			break;
@@ -59,19 +61,20 @@ public:
 		case 0xD: Chip8Interpreter::DXYN(core, instr);    break;
 		case 0xF:
 			switch (kk(instr)) {
-			case 0x29: Chip8Interpreter::LDFVx(core, instr); break;
-			case 0x33: Chip8Interpreter::LDBVx(core, instr); break;
-			case 0x55: Chip8Interpreter::LDIVx(core, instr); break;
-			case 0x65: Chip8Interpreter::LDVxI(core, instr); break;
+			case 0x1E: Chip8Interpreter::ADDIVx(core, instr); break;
+			case 0x29: Chip8Interpreter::LDFVx(core, instr);  break;
+			case 0x33: Chip8Interpreter::LDBVx(core, instr);  break;
+			case 0x55: Chip8Interpreter::LDIVx(core, instr);  break;
+			case 0x65: Chip8Interpreter::LDVxI(core, instr);  break;
 			default:
 				printf("Unimplemented Instruction - %04X\n", instr);
-				exit(1);
+				//exit(1);
 			}
 
 			break;
 		default:
 			printf("Unimplemented Instruction - %04X\n", instr);
-			exit(1);
+			//exit(1);
 		}
 		return 1;
 	};
@@ -178,6 +181,8 @@ public:
 		for (int i = 0; i < n(instr); i++) {
 			const auto byteData = core.read<uint8_t>(core.index + i);
 			for (int j = 0; j < 8; j++) {
+				if (xcoord * 4 + WIDTH * ycoord * 4 >= WIDTH * HEIGHT * 4) { break; }
+
 				auto& pixel = *(uint32_t*)&core.framebuffer[xcoord * 4 + WIDTH * ycoord * 4];
 				const auto bitData = (byteData & (1 << (7 - j))) >> (7 - j);
 				pixel ^= bitData * 0xffffffff;
@@ -191,6 +196,10 @@ public:
 			xcoord -= 8;
 			++ycoord;
 		}
+	}
+
+	static void ADDIVx(Chip8& core, uint16_t instr) { //0xFx1E
+		core.index += core.gpr[x(instr)];
 	}
 
 	static void LDFVx(Chip8& core, uint16_t instr) { //0xFx29
