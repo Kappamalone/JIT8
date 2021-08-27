@@ -97,9 +97,10 @@ void Chip8::runFrame() {
 		}
 
 		totalCyclesRan += cyclesToRun;
-		if (totalCyclesRan > 2000) {
-			//std::ofstream file("emittedcode.bin", std::ios::binary);
-			//file.write((const char*)Chip8Dynarec::code.getCode(), Chip8Dynarec::code.getSize());
+
+		if (totalCyclesRan > speed * 15) {
+			std::ofstream file("emittedcode.bin", std::ios::binary);
+			file.write((const char*)Chip8Dynarec::code.getCode(), Chip8Dynarec::code.getSize());
 			printf("Exiting...\n");
 			exit(1);
 		}
