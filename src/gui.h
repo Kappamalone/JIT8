@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_map>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -17,6 +18,9 @@ private:
 	std::thread emu_thread;
 	Chip8 core;
 
+	//config
+	bool isFramerateCapped;
+
 public:
 	bool runFrame;
 	std::mutex mRunFrame;
@@ -29,14 +33,15 @@ public:
 		emu_thread.detach(); //fly free, emu thread...
 
 		runFrame = false;
+		isFramerateCapped = true;
+		window.setFramerateLimit(60);
 
 		//Initialise SFML stuff
 		texture.create(64, 32);
 		sprite.setTexture(texture);
 		sprite.setScale(sf::Vector2f(10, 10));
-
-		window.setFramerateLimit(60);
 	}
+
 	~GUI() = default;
 
 	//There's no real point to the way i handle multithreading in this application,
@@ -64,19 +69,51 @@ public:
 		while (window.isOpen()) {
 			pingEmuthread();
 
-			sf::Event event;
-			while (window.pollEvent(event))
-			{
-				// "close requested" event: we close the window
-				if (event.type == sf::Event::Closed)
-					window.close();
-			}
+			handleInput();
 
 			texture.update(core.framebuffer.data()); //Draw framebuffer to screen
 			window.draw(sprite);
 			window.display();
 
 			waitForEmuThread();
+		}
+	}
+
+	void handleInput() {
+		static std::unordered_map <sf::Keyboard::Key, int> keyMappings = {
+		   {sf::Keyboard::Num1, 0x0},
+		   {sf::Keyboard::Num2, 0x1},
+		   {sf::Keyboard::Num3, 0x2},
+		   {sf::Keyboard::Num4, 0x3},
+		   {sf::Keyboard::Q, 0x4},
+		   {sf::Keyboard::W, 0x5},
+		   {sf::Keyboard::E, 0x6},
+		   {sf::Keyboard::R, 0x7},
+		   {sf::Keyboard::A, 0x8},
+		   {sf::Keyboard::S, 0x9},
+		   {sf::Keyboard::D, 0xA},
+		   {sf::Keyboard::F, 0xB},
+		   {sf::Keyboard::Z, 0xC},
+		   {sf::Keyboard::X, 0xD},
+		   {sf::Keyboard::C, 0xE},
+		   {sf::Keyboard::V, 0xF},
+		};
+
+		sf::Event event;
+
+		while (window.pollEvent(event)) //Handle input
+		{
+			switch (event.type) {
+			case sf::Event::Closed:
+				window.close();
+				break;
+			case sf::Event::KeyPressed:
+				core.keyState[keyMappings[event.key.code]] = true;
+				break;
+			case sf::Event::KeyReleased:
+				core.keyState[keyMappings[event.key.code]] = false;
+				break;
+			}
 		}
 	}
 };

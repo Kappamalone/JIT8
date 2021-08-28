@@ -17,10 +17,11 @@ Chip8::Chip8(GUI* gui, int speed) {
 	ram.fill(0);
 	stack.fill(0);
 	gpr.fill(0);
+	keyState.fill(0);
 	framebuffer.fill(0);
 
-	loadRom("../../roms/testroms/bc_test.ch8");
-	//loadRom("../../roms/brix");
+	//loadRom("../../roms/testroms/test_opcode.ch8");
+	loadRom("../../roms/brix");
 	loadFonts();
 };
 
@@ -86,10 +87,10 @@ void Chip8::runFrame() {
 		waitForPing();
 
 		static auto totalCyclesRan = 0; // for debug purposes
-		static auto cpuExecuteFunc = Chip8Dynarec::executeFunc;
+		static auto cpuExecuteFunc = Chip8Interpreter::executeFunc;
 
 		//Run (1/60 * speed) cycles per frame (10 by default)
-		static auto cyclesToRun = speed / 60; //Just in case we allow for updating speed during runtime
+		static auto cyclesToRun = speed / 600; //Just in case we allow for updating speed during runtime
 		auto cyclesRan = 0;
 
 		while (cyclesRan < cyclesToRun) {
@@ -98,12 +99,16 @@ void Chip8::runFrame() {
 
 		totalCyclesRan += cyclesToRun;
 
-		if (totalCyclesRan > speed * 15) {
+		if (cpuExecuteFunc == Chip8Dynarec::executeFunc && totalCyclesRan > speed * 3) {
 			std::ofstream file("emittedcode.bin", std::ios::binary);
 			file.write((const char*)Chip8Dynarec::code.getCode(), Chip8Dynarec::code.getSize());
 			printf("Exiting...\n");
 			exit(1);
 		}
+
+		// Handle timers
+		if (delay) --delay;
+		if (sound) --sound;
 
 		pingGuiThread();
 	}

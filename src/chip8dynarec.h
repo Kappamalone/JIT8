@@ -65,6 +65,8 @@ public:
 		code.push(rbp);
 		code.mov(rbp, (uintptr_t)&core); //Load cpu state
 		code.sub(rsp, 40); //permanently align stack for all function calls in block
+		auto addPCPointer = code.getSize(); //get pointer to cache position to overwrite later
+		code.add(dword[rbp + getOffset(core, &core.pc)], 0);
 
 		while (true) {
 			auto instr = core.read<uint16_t>(dynarecPC);
@@ -149,6 +151,13 @@ public:
 		}
 
 		//Function epilogue
+
+		// Set cycles taken by block retroactively in prologue
+		auto returnPointer = code.getSize();
+		code.setSize(addPCPointer);
+		code.add(dword[rbp + getOffset(core, &core.pc)], cycles * 2);
+		code.setSize(returnPointer);
+
 		code.add(rsp, 40); // restore stack to original position
 		code.pop(rbp);
 		code.mov(eax, cycles); // set return value as cycles taken in block
@@ -167,7 +176,7 @@ public:
 	}
 
 	static void emitFallback(interpreterfp fallback, Chip8& core, uint16_t instr) {
-		code.add(dword[rbp + getOffset(core, &core.pc)], 2);
+		//code.add(dword[rbp + getOffset(core, &core.pc)], 2);
 		code.mov(rax, (uintptr_t)fallback);
 		code.mov(rcx, (uintptr_t)&core);
 		code.mov(edx, instr);
@@ -181,5 +190,4 @@ public:
 		const auto endPage = endAddress >> pageShift;
 		memset(&blockPageTable[startPage], 0, (endPage - startPage + 1) * sizeof(fp));
 	}
-
 };

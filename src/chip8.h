@@ -2,6 +2,7 @@
 #include <array>
 #include <vector>
 #include <thread>
+#include <atomic>
 #include <stdint.h>
 #include <gui.h>
 
@@ -33,7 +34,9 @@ public:
 	friend class Chip8Interpreter;
 	friend class Chip8Dynarec;
 
+
 	std::array<uint8_t, WIDTH* HEIGHT * sizeof(uint32_t)> framebuffer;
+	std::array<volatile bool, 16> keyState; //input
 
 	Chip8(GUI* gui, int speed);
 	~Chip8();

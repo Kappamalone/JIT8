@@ -28,7 +28,7 @@ public:
 			case 0xEE: Chip8Interpreter::RET(core, instr); break;
 			default:
 				printf("Unimplemented Instruction - %04X\n", instr);
-				//exit(1);
+				exit(1);
 			}
 
 			break;
@@ -52,15 +52,29 @@ public:
 			case 0xE: Chip8Interpreter::SHLVxVy(core, instr);  break;
 			default:
 				printf("Unimplemented Instruction - %04X\n", instr);
-				//exit(1);
+				exit(1);
 			}
 
 			break;
-		case 0x9: Chip8Interpreter::SNEVxVy(core, instr); break;
-		case 0xA: Chip8Interpreter::LDI(core, instr);     break;
-		case 0xD: Chip8Interpreter::DXYN(core, instr);    break;
+		case 0x9: Chip8Interpreter::SNEVxVy(core, instr);   break;
+		case 0xA: Chip8Interpreter::LDI(core, instr);       break;
+		case 0xC: Chip8Interpreter::RNDVxByte(core, instr); break;
+		case 0xD: Chip8Interpreter::DXYN(core, instr);      break;
+		case 0xE:
+			switch (kk(instr)) {
+			case 0x9E: Chip8Interpreter::SKPVx(core, instr);  break;
+			case 0xA1: Chip8Interpreter::SKNPVx(core, instr); break;
+			default:
+				printf("Unimplemented Instruction - %04X\n", instr);
+				exit(1);
+			}
+
+			break;
 		case 0xF:
 			switch (kk(instr)) {
+			case 0x07: Chip8Interpreter::LDVxDT(core, instr); break;
+			case 0x15: Chip8Interpreter::LDDTVx(core, instr); break;
+			case 0x18: Chip8Interpreter::LDSTVx(core, instr); break;
 			case 0x1E: Chip8Interpreter::ADDIVx(core, instr); break;
 			case 0x29: Chip8Interpreter::LDFVx(core, instr);  break;
 			case 0x33: Chip8Interpreter::LDBVx(core, instr);  break;
@@ -68,13 +82,13 @@ public:
 			case 0x65: Chip8Interpreter::LDVxI(core, instr);  break;
 			default:
 				printf("Unimplemented Instruction - %04X\n", instr);
-				//exit(1);
+				exit(1);
 			}
 
 			break;
 		default:
 			printf("Unimplemented Instruction - %04X\n", instr);
-			//exit(1);
+			exit(1);
 		}
 		return 1;
 	};
@@ -173,6 +187,10 @@ public:
 		core.index = addr(instr);
 	}
 
+	static void RNDVxByte(Chip8& core, uint16_t instr) { //0xCxkk
+		core.gpr[x(instr)] = kk(instr); //TODO: add the random byte &
+	}
+
 	static void DXYN(Chip8& core, uint16_t instr) { //0xDxyn
 		auto xcoord = core.gpr[x(instr)] % 64;
 		auto ycoord = core.gpr[y(instr)] % 32;
@@ -198,6 +216,30 @@ public:
 		}
 	}
 
+	static void SKPVx(Chip8& core, uint16_t instr) { //Ex9E
+		if (core.keyState[x(instr)]) {
+			core.pc += 2;
+		}
+	}
+
+	static void SKNPVx(Chip8& core, uint16_t instr) { //ExA1
+		if (!core.keyState[x(instr)]) {
+			core.pc += 2;
+		}
+	}
+
+	static void LDVxDT(Chip8& core, uint16_t instr) { //0xFx07
+		core.gpr[x(instr)] = core.delay;
+	}
+
+	static void LDDTVx(Chip8& core, uint16_t instr) { //0xFx15
+		core.delay = core.gpr[x(instr)];
+	}
+
+	static void LDSTVx(Chip8& core, uint16_t instr) { //0xFx18
+		core.sound = core.gpr[x(instr)];
+	}
+
 	static void ADDIVx(Chip8& core, uint16_t instr) { //0xFx1E
 		core.index += core.gpr[x(instr)];
 	}
@@ -214,16 +256,10 @@ public:
 	}
 
 	static void LDIVx(Chip8& core, uint16_t instr) { //0xFx55
-		// for (auto i = 0; i <= x(instr); i++) {
-		// 	core.ram[core.index + i] = core.gpr[i];
-		// }
 		memcpy(core.ram.data() + core.index, core.gpr.data(), x(instr) + 1);
 	}
 
 	static void LDVxI(Chip8& core, uint16_t instr) { //0xFx65
-		// for (auto i = 0; i <= x(instr); i++) {
-		// 	core.gpr[i] = core.ram[core.index + i];
-		// }
 		memcpy(core.gpr.data(), core.ram.data() + core.index, x(instr) + 1);
 	}
 };
