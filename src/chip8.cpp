@@ -21,7 +21,7 @@ Chip8::Chip8(GUI* gui, int speed) {
 	framebuffer.fill(0);
 
 	//loadRom("../../roms/testroms/test_opcode.ch8");
-	loadRom("../../roms/brix");
+	loadRom("../../roms/invaders");
 	loadFonts();
 };
 
@@ -90,7 +90,7 @@ void Chip8::runFrame() {
 		static auto cpuExecuteFunc = Chip8Interpreter::executeFunc;
 
 		//Run (1/60 * speed) cycles per frame (10 by default)
-		static auto cyclesToRun = speed / 600; //Just in case we allow for updating speed during runtime
+		static auto cyclesToRun = speed / 60; //Just in case we allow for updating speed during runtime
 		auto cyclesRan = 0;
 
 		while (cyclesRan < cyclesToRun) {

@@ -36,7 +36,7 @@ public:
 
 
 	std::array<uint8_t, WIDTH* HEIGHT * sizeof(uint32_t)> framebuffer;
-	std::array<volatile bool, 16> keyState; //input
+	std::array<bool, 16> keyState; //input
 
 	Chip8(GUI* gui, int speed);
 	~Chip8();

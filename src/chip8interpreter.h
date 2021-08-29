@@ -188,7 +188,7 @@ public:
 	}
 
 	static void RNDVxByte(Chip8& core, uint16_t instr) { //0xCxkk
-		core.gpr[x(instr)] = kk(instr); //TODO: add the random byte &
+		core.gpr[x(instr)] = (rand() % 256) & kk(instr); //TODO: add the random byte &
 	}
 
 	static void DXYN(Chip8& core, uint16_t instr) { //0xDxyn
@@ -196,16 +196,16 @@ public:
 		auto ycoord = core.gpr[y(instr)] % 32;
 		core.gpr[0xf] = 0;
 
-		for (int i = 0; i < n(instr); i++) {
-			const auto byteData = core.read<uint8_t>(core.index + i);
-			for (int j = 0; j < 8; j++) {
+		for (auto i = 0; i < n(instr); i++) {
+			const auto bytedata = core.read<uint8_t>(core.index + i);
+			for (auto j = 0; j < 8; j++) {
 				if (xcoord * 4 + WIDTH * ycoord * 4 >= WIDTH * HEIGHT * 4) { break; }
 
 				auto& pixel = *(uint32_t*)&core.framebuffer[xcoord * 4 + WIDTH * ycoord * 4];
-				const auto bitData = (byteData & (1 << (7 - j))) >> (7 - j);
-				pixel ^= bitData * 0xffffffff;
+				const auto bitdata = (bytedata & (1 << (7 - j))) >> (7 - j);
+				pixel ^= bitdata * 0xffffffff;
 
-				if (bitData && !pixel) {
+				if (bitdata && !pixel) {
 					core.gpr[0xf] = 1;
 				}
 
@@ -217,13 +217,13 @@ public:
 	}
 
 	static void SKPVx(Chip8& core, uint16_t instr) { //Ex9E
-		if (core.keyState[x(instr)]) {
+		if (core.keyState[core.gpr[x(instr)]]) {
 			core.pc += 2;
 		}
 	}
 
 	static void SKNPVx(Chip8& core, uint16_t instr) { //ExA1
-		if (!core.keyState[x(instr)]) {
+		if (!core.keyState[core.gpr[x(instr)]]) {
 			core.pc += 2;
 		}
 	}
