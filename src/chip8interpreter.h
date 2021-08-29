@@ -16,7 +16,7 @@ public:
 	//Returns amount of cycles it took to execute
 	//On an interpreter, this is always 1
 	static int executeFunc(Chip8& core) {
-		//printf("%04X\n", core.pc);
+		printf("%04X\n", core.pc);
 
 		auto instr = core.read<uint16_t>(core.pc);
 		core.pc += 2;
@@ -58,6 +58,7 @@ public:
 			break;
 		case 0x9: Chip8Interpreter::SNEVxVy(core, instr);   break;
 		case 0xA: Chip8Interpreter::LDI(core, instr);       break;
+		case 0xB: Chip8Interpreter::JPV0(core, instr);      break;
 		case 0xC: Chip8Interpreter::RNDVxByte(core, instr); break;
 		case 0xD: Chip8Interpreter::DXYN(core, instr);      break;
 		case 0xE:
@@ -73,6 +74,7 @@ public:
 		case 0xF:
 			switch (kk(instr)) {
 			case 0x07: Chip8Interpreter::LDVxDT(core, instr); break;
+			case 0x0A: Chip8Interpreter::LDVxK(core, instr);  break;
 			case 0x15: Chip8Interpreter::LDDTVx(core, instr); break;
 			case 0x18: Chip8Interpreter::LDSTVx(core, instr); break;
 			case 0x1E: Chip8Interpreter::ADDIVx(core, instr); break;
@@ -187,6 +189,10 @@ public:
 		core.index = addr(instr);
 	}
 
+	static void JPV0(Chip8& core, uint16_t instr) { //0xBnnn
+		core.pc = (uint16_t)core.gpr[0] + addr(instr);
+	}
+
 	static void RNDVxByte(Chip8& core, uint16_t instr) { //0xCxkk
 		core.gpr[x(instr)] = (rand() % 256) & kk(instr);
 	}
@@ -230,6 +236,16 @@ public:
 
 	static void LDVxDT(Chip8& core, uint16_t instr) { //0xFx07
 		core.gpr[x(instr)] = core.delay;
+	}
+
+	static void LDVxK(Chip8& core, uint16_t instr) { //0xFx0A
+		for (auto i = 0; i < core.keyState.size(); i++) {
+			if (core.keyState[i]) {
+				core.gpr[x(instr)] = i;
+				return;
+			}
+		}
+		core.pc -= 2;
 	}
 
 	static void LDDTVx(Chip8& core, uint16_t instr) { //0xFx15

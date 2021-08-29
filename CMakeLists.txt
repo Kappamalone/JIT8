@@ -22,9 +22,11 @@ include_directories(${PROJECT_SOURCE_DIR}/externals/xbyak) #needed when using Vi
 add_executable(${PROJECT_NAME}
   src/main.cpp
   src/gui.h
+  src/jitcommon.h
   src/chip8.cpp
   src/chip8.h
   src/chip8interpreter.h
+  src/chip8cachedinterpreter.h
   src/chip8dynarec.h
 )
 

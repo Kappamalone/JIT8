@@ -1,30 +1,9 @@
 #pragma once
 #include <stdio.h>
 #include <chip8.h>
-#include <xbyak/xbyak.h>
+#include <jitcommon.h>
 
 class Chip8;
-
-//TODO: define registers with relevant names and make compatible with system-v abi
-
-using namespace Xbyak::util;
-using fp = int(*)();
-using interpreterfp = void(*)(Chip8&, uint16_t);
-
-//The entire code emitter. God bless xbyak
-static constexpr int cacheSize = 16 * 1024;
-static constexpr int cacheLeeway = 1024; // If currentCacheSize + cacheLeeway > cacheSize, reset cache
-static uint8_t cache[cacheSize]; // emitted code cache
-class x64Emitter : public Xbyak::CodeGenerator {
-public:
-	x64Emitter() : CodeGenerator(sizeof(cache), cache) { // Initialize emitter and memory
-		setProtectMode(PROTECT_RWE); // Mark emitter memory as readadable/writeable/executable
-	}
-};
-
-static constexpr int pageSize = 8; // size of cache pages
-static constexpr int pageShift = 3; // shift required to get page froma given address
-//TODO: ctz
 
 class Chip8Dynarec {
 public:
@@ -110,14 +89,30 @@ public:
 				break;
 			case 0x9: emitFallback(Chip8Interpreter::SNEVxVy, core, instr); breakCache = true; break;
 			case 0xA: emitFallback(Chip8Interpreter::LDI, core, instr);                        break;
+			case 0xB: emitFallback(Chip8Interpreter::JPV0, core, instr);    breakCache = true; break;
+			case 0xC: emitFallback(Chip8Interpreter::RNDVxByte, core, instr); break;
 			case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);                       break;
+			case 0xE:
+				switch (instr & 0xff) {
+				case 0x9E: emitFallback(Chip8Interpreter::SKPVx, core, instr);  breakCache = true; break;
+				case 0xA1: emitFallback(Chip8Interpreter::SKNPVx, core, instr); breakCache = true; break;
+				default:
+					printf("Unimplemented Instruction - %04X\n", instr);
+					//exit(1);
+				}
+
+				break;
 			case 0xF:
 				switch (instr & 0xff) {
-				case 0x1E: emitFallback(Chip8Interpreter::ADDIVx, core, instr); break;
-				case 0x29: emitFallback(Chip8Interpreter::LDFVx, core, instr);  break;
+				case 0x07: emitFallback(Chip8Interpreter::LDVxDT, core, instr);                   break;
+				case 0x0A: emitFallback(Chip8Interpreter::LDVxK, core, instr); breakCache = true; break;
+				case 0x15: emitFallback(Chip8Interpreter::LDDTVx, core, instr);                   break;
+				case 0x18: emitFallback(Chip8Interpreter::LDSTVx, core, instr);                   break;
+				case 0x1E: emitFallback(Chip8Interpreter::ADDIVx, core, instr);                   break;
+				case 0x29: emitFallback(Chip8Interpreter::LDFVx, core, instr);                    break;
 				case 0x33:
 					emitFallback(Chip8Interpreter::LDBVx, core, instr);
-					code.mov(rax, (uintptr_t)Chip8Dynarec::invalidateRange);
+					code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
 					code.mov(ecx, dword[rbp + getOffset(core, &core.index)]);
 					code.mov(edx, dword[rbp + getOffset(core, &core.index)]);
 					code.add(edx, 2);
@@ -125,7 +120,7 @@ public:
 					break;
 				case 0x55: {
 					emitFallback(Chip8Interpreter::LDIVx, core, instr);
-					code.mov(rax, (uintptr_t)Chip8Dynarec::invalidateRange);
+					code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
 					code.mov(ecx, dword[rbp + getOffset(core, &core.index)]);
 					code.mov(edx, dword[rbp + getOffset(core, &core.index)]);
 					code.add(edx, ((instr & 0x0f00) >> 8));

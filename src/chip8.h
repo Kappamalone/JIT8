@@ -32,6 +32,7 @@ private:
 
 public:
 	friend class Chip8Interpreter;
+	friend class Chip8CachedInterpreter;
 	friend class Chip8Dynarec;
 
 

@@ -6,13 +6,14 @@
 #include <gui.h>
 #include <chip8.h>
 #include <chip8interpreter.h>
+#include <chip8cachedinterpreter.h>
 #include <chip8dynarec.h>
 
 Chip8::Chip8(GUI* gui, int speed) {
 	this->gui = gui;
 	this->speed = speed;
 
-	this->pc = 0x200;
+	pc = 0x200;
 
 	ram.fill(0);
 	stack.fill(0);
@@ -21,11 +22,15 @@ Chip8::Chip8(GUI* gui, int speed) {
 	framebuffer.fill(0);
 
 	//loadRom("../../roms/testroms/BC_test.ch8");
-	loadRom("../../roms/brix");
+	loadRom("../../roms/invaders");
 	loadFonts();
 };
 
 Chip8::~Chip8() {
+	for (auto& i : Chip8CachedInterpreter::blockPageTable) {
+		delete[] i;
+	}
+
 	for (auto& i : Chip8Dynarec::blockPageTable) {
 		delete[] i;
 	}
@@ -87,7 +92,7 @@ void Chip8::runFrame() {
 		waitForPing();
 
 		static auto totalCyclesRan = 0; // for debug purposes
-		static auto cpuExecuteFunc = Chip8Interpreter::executeFunc;
+		static auto cpuExecuteFunc = Chip8Dynarec::executeFunc;
 
 		//Run (1/60 * speed) cycles per frame (10 by default)
 		static auto cyclesToRun = speed / 60; //Just in case we allow for updating speed during runtime
@@ -99,12 +104,12 @@ void Chip8::runFrame() {
 
 		totalCyclesRan += cyclesToRun;
 
-		if (cpuExecuteFunc == Chip8Dynarec::executeFunc && totalCyclesRan > speed * 3) {
+		/*if (cpuExecuteFunc == Chip8Dynarec::executeFunc && totalCyclesRan > speed * 3) {
 			std::ofstream file("emittedcode.bin", std::ios::binary);
 			file.write((const char*)Chip8Dynarec::code.getCode(), Chip8Dynarec::code.getSize());
 			printf("Exiting...\n");
 			exit(1);
-		}
+		}*/
 
 		// Handle timers
 		if (delay) --delay;
