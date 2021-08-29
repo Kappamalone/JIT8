@@ -16,16 +16,16 @@ public:
 	//Returns amount of cycles it took to execute
 	//On an interpreter, this is always 1
 	static int executeFunc(Chip8& core) {
-		printf("%04X\n", core.pc);
+		//printf("%04X\n", core.pc);
 
 		auto instr = core.read<uint16_t>(core.pc);
 		core.pc += 2;
 
 		switch (identifier(instr)) {
 		case 0x0:
-			switch (kk(instr)) {
-			case 0xE0: Chip8Interpreter::CLS(core, instr); break;
-			case 0xEE: Chip8Interpreter::RET(core, instr); break;
+			switch (addr(instr)) {
+			case 0x0E0: Chip8Interpreter::CLS(core, instr); break;
+			case 0x0EE: Chip8Interpreter::RET(core, instr); break;
 			default:
 				printf("Unimplemented Instruction - %04X\n", instr);
 				exit(1);
@@ -52,7 +52,7 @@ public:
 			case 0xE: Chip8Interpreter::SHLVxVy(core, instr);  break;
 			default:
 				printf("Unimplemented Instruction - %04X\n", instr);
-				exit(1);
+				//exit(1);
 			}
 
 			break;
@@ -66,7 +66,7 @@ public:
 			case 0xA1: Chip8Interpreter::SKNPVx(core, instr); break;
 			default:
 				printf("Unimplemented Instruction - %04X\n", instr);
-				exit(1);
+				//exit(1);
 			}
 
 			break;
@@ -82,13 +82,13 @@ public:
 			case 0x65: Chip8Interpreter::LDVxI(core, instr);  break;
 			default:
 				printf("Unimplemented Instruction - %04X\n", instr);
-				exit(1);
+				//exit(1);
 			}
 
 			break;
 		default:
 			printf("Unimplemented Instruction - %04X\n", instr);
-			exit(1);
+			//exit(1);
 		}
 		return 1;
 	};
@@ -188,7 +188,7 @@ public:
 	}
 
 	static void RNDVxByte(Chip8& core, uint16_t instr) { //0xCxkk
-		core.gpr[x(instr)] = (rand() % 256) & kk(instr); //TODO: add the random byte &
+		core.gpr[x(instr)] = (rand() % 256) & kk(instr);
 	}
 
 	static void DXYN(Chip8& core, uint16_t instr) { //0xDxyn

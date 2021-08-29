@@ -72,6 +72,7 @@ public:
 			handleInput();
 
 			texture.update(core.framebuffer.data()); //Draw framebuffer to screen
+			window.clear();
 			window.draw(sprite);
 			window.display();
 
