@@ -23,10 +23,6 @@ public:
 		return (uintptr_t)variable - (uintptr_t)&core;
 	}
 
-	static Xbyak::Address inline getValue(Chip8& core, void* variable) {
-		return dword[rbp + getOffset(core, variable)];
-	}
-
 	static int executeFunc(Chip8& core) {
 		printf("%04X\n", core.pc);
 
@@ -50,120 +46,121 @@ public:
 		auto emittedCode = (fp)code.getCurr();
 		auto cycles = 0;
 		auto dynarecPC = core.pc;
-		auto emitPCEpilogue = true;
+		auto breakCache = false; //TODO: remove redundant pc incremements on branches
 
 		// Function prologue
 		code.mov(r8, dynarecPC); // DEBUG: store pc in block to lookup in a decompiler
 		code.push(rbp);
 		code.mov(rbp, (uintptr_t)&core); //Load cpu state
 		code.sub(rsp, 40); //permanently align stack for all function calls in block
-
-		// No more pc increments done in the prologue. Peach enlightened me with the small
-		// optimisation of either doing it in the epilogue or in jump/branch instructions
-		// instead
+		auto addPCPointer = code.getSize(); //get pointer to cache position to overwrite later
+		code.add(dword[rbp + getOffset(core, &core.pc)], 0);
 
 		while (true) {
-			auto breakCache = false;
 			auto instr = core.read<uint16_t>(dynarecPC);
 			dynarecPC += 2;
+			++cycles;
 
 			switch (getidentifier(instr)) {
 			case 0x0:
 				switch (getaddr(instr)) {
 				case 0x0E0: emitFallback(Chip8Interpreter::CLS, core, instr);                    break;
-					//case 0x0EE: emitFallback(Chip8Interpreter::RET, core, instr); breakCache = true; break;
+				//case 0x0EE: emitRET(core, instr); breakCache = true; break;
 				default:
 					printf("Unimplemented instr - %04X\n", instr);
-					exit(1);
+					//exit(1);
 				}
 
 				break;
-			case 0x1: emitJMP(core, instr); breakCache = true; emitPCEpilogue = false; break;
-				// case 0x2: emitFallback(Chip8Interpreter::CALL, core, instr);      breakCache = true; break;
-			case 0x3: emitFallback(Chip8Interpreter::SEVxByte, core, instr);  breakCache = true; break;
-				// case 0x4: emitFallback(Chip8Interpreter::SNEVxByte, core, instr); breakCache = true; break;
-				// case 0x5: emitFallback(Chip8Interpreter::SEVxVy, core, instr);    breakCache = true; break;
+			case 0x1: emitJMP(core, instr); breakCache = true; break;
+			//case 0x2: emitFallback(Chip8Interpreter::CALL, core, instr); breakCache = true; break;
+			//case 0x3: emitSEVxByte(core, instr, cycles * 2);  breakCache = true; break;
+			//case 0x4: emitFallback(Chip8Interpreter::SNEVxByte, core, instr); breakCache = true; break;
+			//case 0x5: emitFallback(Chip8Interpreter::SEVxVy, core, instr);    breakCache = true; break;
 			case 0x6: emitLDVxByte(core, instr);  break;
-			case 0x7: emitADDVXByte(core, instr); break;
-				// case 0x8:
-				// 	switch (instr & 0xf) {
-				// 	case 0x0: emitFallback(Chip8Interpreter::LDVxVy, core, instr);   break;
-				// 	case 0x1: emitFallback(Chip8Interpreter::ORVxVy, core, instr);   break;
-				// 	case 0x2: emitFallback(Chip8Interpreter::ANDVxVy, core, instr);  break;
-				// 	case 0x3: emitFallback(Chip8Interpreter::XORVxVy, core, instr);  break;
-				// 	case 0x4: emitFallback(Chip8Interpreter::ADDVxVy, core, instr);  break;
-				// 	case 0x5: emitFallback(Chip8Interpreter::SUBVxVy, core, instr);  break;
-				// 	case 0x6: emitFallback(Chip8Interpreter::SHRVxVy, core, instr);  break;
-				// 	case 0x7: emitFallback(Chip8Interpreter::SUBNVxVy, core, instr); break;
-				// 	case 0xE: emitFallback(Chip8Interpreter::SHLVxVy, core, instr);  break;
-				// 	default:
-				// 		printf("Unimplemented instr - %04X\n", instr);
-				// 		//exit(1);
-				// 	}
+			case 0x7: emitADDVxByte(core, instr); break;
+			// case 0x8:
+			// 	switch (instr & 0xf) {
+			// 	case 0x0: emitFallback(Chip8Interpreter::LDVxVy, core, instr);   break;
+			// 	case 0x1: emitFallback(Chip8Interpreter::ORVxVy, core, instr);   break;
+			// 	case 0x2: emitFallback(Chip8Interpreter::ANDVxVy, core, instr);  break;
+			// 	case 0x3: emitFallback(Chip8Interpreter::XORVxVy, core, instr);  break;
+			// 	case 0x4: emitFallback(Chip8Interpreter::ADDVxVy, core, instr);  break;
+			// 	case 0x5: emitFallback(Chip8Interpreter::SUBVxVy, core, instr);  break;
+			// 	case 0x6: emitFallback(Chip8Interpreter::SHRVxVy, core, instr);  break;
+			// 	case 0x7: emitFallback(Chip8Interpreter::SUBNVxVy, core, instr); break;
+			// 	case 0xE: emitFallback(Chip8Interpreter::SHLVxVy, core, instr);  break;
+			// 	default:
+			// 		printf("Unimplemented instr - %04X\n", instr);
+			// 		//exit(1);
+			// 	}
 
-				// 	break;
-				// case 0x9: emitFallback(Chip8Interpreter::SNEVxVy, core, instr); breakCache = true; break;
+			// 	break;
+			//case 0x9: emitFallback(Chip8Interpreter::SNEVxVy, core, instr); breakCache = true; break;
 			case 0xA: emitLDI(core, instr); break;
-				// case 0xB: emitFallback(Chip8Interpreter::JPV0, core, instr);    breakCache = true; break;
-				// case 0xC: emitFallback(Chip8Interpreter::RNDVxByte, core, instr); break;
+			//case 0xB: emitFallback(Chip8Interpreter::JPV0, core, instr);    breakCache = true; break;
+			//case 0xC: emitFallback(Chip8Interpreter::RNDVxByte, core, instr); break;
 			case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);                       break;
-				// case 0xE:
-				// 	switch (instr & 0xff) {
-				// 	case 0x9E: emitFallback(Chip8Interpreter::SKPVx, core, instr);  breakCache = true; break;
-				// 	case 0xA1: emitFallback(Chip8Interpreter::SKNPVx, core, instr); breakCache = true; break;
-				// 	default:
-				// 		printf("Unimplemented instr - %04X\n", instr);
-				// 		//exit(1);
-				// 	}
+			// case 0xE:
+			// 	switch (instr & 0xff) {
+			// 	case 0x9E: emitFallback(Chip8Interpreter::SKPVx, core, instr);  breakCache = true; break;
+			// 	case 0xA1: emitFallback(Chip8Interpreter::SKNPVx, core, instr); breakCache = true; break;
+			// 	default:
+			// 		printf("Unimplemented instr - %04X\n", instr);
+			// 		//exit(1);
+			// 	}
 
-				// 	break;
-				// case 0xF:
-				// 	switch (instr & 0xff) {
-				// 	case 0x07: emitFallback(Chip8Interpreter::LDVxDT, core, instr);                   break;
-				// 	case 0x0A: emitFallback(Chip8Interpreter::LDVxK, core, instr); breakCache = true; break;
-				// 	case 0x15: emitFallback(Chip8Interpreter::LDDTVx, core, instr);                   break;
-				// 	case 0x18: emitFallback(Chip8Interpreter::LDSTVx, core, instr);                   break;
-				// 	case 0x1E: emitFallback(Chip8Interpreter::ADDIVx, core, instr);                   break;
-				// 	case 0x29: emitFallback(Chip8Interpreter::LDFVx, core, instr);                    break;
-				// 	case 0x33:
-				// 		emitFallback(Chip8Interpreter::LDBVx, core, instr);
-				// 		code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
-				// 		code.mov(ecx, dword[rbp + getOffset(core, &core.index)]);
-				// 		code.mov(edx, dword[rbp + getOffset(core, &core.index)]);
-				// 		code.add(edx, 2);
-				// 		code.call(rax);
-				// 		break;
-				// 	case 0x55: {
-				// 		emitFallback(Chip8Interpreter::LDIVx, core, instr);
-				// 		code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
-				// 		code.mov(ecx, dword[rbp + getOffset(core, &core.index)]);
-				// 		code.mov(edx, dword[rbp + getOffset(core, &core.index)]);
-				// 		code.add(edx, ((instr & 0x0f00) >> 8));
-				// 		code.call(rax);
-				// 		break;
-				// 	}
-				// 	case 0x65: emitFallback(Chip8Interpreter::LDVxI, core, instr); break;
-				// 	default:
-				// 		printf("Unimplemented instr - %04X\n", instr);
-				// 		//exit(1);
-				// 	}
+			// 	break;
+			// case 0xF:
+			// 	switch (instr & 0xff) {
+			// 	case 0x07: emitFallback(Chip8Interpreter::LDVxDT, core, instr);                   break;
+			// 	case 0x0A: emitFallback(Chip8Interpreter::LDVxK, core, instr); breakCache = true; break;
+			// 	case 0x15: emitFallback(Chip8Interpreter::LDDTVx, core, instr);                   break;
+			// 	case 0x18: emitFallback(Chip8Interpreter::LDSTVx, core, instr);                   break;
+			// 	case 0x1E: emitFallback(Chip8Interpreter::ADDIVx, core, instr);                   break;
+			// 	case 0x29: emitFallback(Chip8Interpreter::LDFVx, core, instr);                    break;
+			// 	case 0x33:
+			// 		emitFallback(Chip8Interpreter::LDBVx, core, instr);
+			// 		code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
+			// 		code.mov(ecx, dword[rbp + getOffset(core, &core.index)]);
+			// 		code.mov(edx, dword[rbp + getOffset(core, &core.index)]);
+			// 		code.add(edx, 2);
+			// 		code.call(rax);
+			// 		break;
+			// 	case 0x55: {
+			// 		emitFallback(Chip8Interpreter::LDIVx, core, instr);
+			// 		code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
+			// 		code.mov(ecx, dword[rbp + getOffset(core, &core.index)]);
+			// 		code.mov(edx, dword[rbp + getOffset(core, &core.index)]);
+			// 		code.add(edx, ((instr & 0x0f00) >> 8));
+			// 		code.call(rax);
+			// 		break;
+			// 	}
+			// 	case 0x65: emitFallback(Chip8Interpreter::LDVxI, core, instr); break;
+			// 	default:
+			// 		printf("Unimplemented instr - %04X\n", instr);
+			// 		//exit(1);
+			// 	}
 
-				// 	break;
+			// 	break;
 			default:
 				printf("Unimplemented instr - %04X\n", instr);
-				exit(1);
+				//exit(1);
 			}
 
-			++cycles;
 			if ((dynarecPC & (pageSize - 1)) == 0 || breakCache) { //If we exceed the page boundary, dip
 				break;
 			}
 		}
 
 		//Function epilogue
-		if (emitPCEpilogue) {
-			code.add(dword[rbp + getOffset(core, &core.pc)], cycles * 2);
-		}
+
+		// Set cycles taken by block retroactively in prologue
+		auto returnPointer = code.getSize();
+		code.setSize(addPCPointer);
+		code.add(dword[rbp + getOffset(core, &core.pc)], cycles * 2);
+		code.setSize(returnPointer);
+
 		code.add(rsp, 40); // restore stack to original position
 		code.pop(rbp);
 		code.mov(eax, cycles); // set return value as cycles taken in block
@@ -200,27 +197,31 @@ public:
 	// Recompilation
 
 	static void emitRET(Chip8& core, uint16_t instr) { //0x00EE (post-increment)
-		code.dec(dword[rbp + getOffset(core, &core.sp)]);
-		code.mov(dword[rbp + getOffset(core, &core.pc)], dword[rbp + getOffset(core, &core.stack[core.sp])]);
+		code.dec(byte[rbp + getOffset(core, &core.sp)]);
+		code.mov(word[rbp + getOffset(core, &core.pc)], word[rbp + getOffset(core, &core.stack[core.sp])]);
 	}
 
 	static void emitJMP(Chip8& core, uint16_t instr) { //1nnn
-		code.mov(getValue(core, &core.pc), getaddr(instr));
+		code.mov(word[rbp + getOffset(core, &core.pc)], getaddr(instr));
 	}
 
 	static void emitSEVxByte(Chip8& core, uint16_t instr, int cycles) { //0x3xkk
-
+		code.mov(ecx, 0); // TODO: redundant pc elimination
+		code.mov(edx, 2); // +2 to skip next instruction
+		code.cmp(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], getkk(instr));
+		code.cmove(ecx, edx); // add instruction skip if cmp = 0
+		code.add(word[rbp + getOffset(core, &core.pc)], ecx);
 	}
 
 	static void emitLDVxByte(Chip8& core, uint16_t instr) { //6xkk
-		code.mov(getValue(core, &core.gpr[getx(instr)]), getkk(instr));
+		code.mov(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], getkk(instr));
 	}
 
-	static void emitADDVXByte(Chip8& core, uint16_t instr) { //7xkk
-		code.add(getValue(core, &core.gpr[getx(instr)]), getkk(instr));
+	static void emitADDVxByte(Chip8& core, uint16_t instr) { //7xkk
+		code.add(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], getkk(instr));
 	}
 
 	static void emitLDI(Chip8& core, uint16_t instr) { //0xAnnn
-		code.mov(getValue(core, &core.index), instr & 0xfff);
+		code.mov(word[rbp + getOffset(core, &core.index)], instr & 0xfff);
 	}
 };

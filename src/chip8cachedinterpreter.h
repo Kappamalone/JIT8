@@ -45,7 +45,7 @@ public:
 		code.mov(rbp, (uintptr_t)&core); //Load cpu state
 		code.sub(rsp, 40); //permanently align stack for all function calls in block
 		auto addPCPointer = code.getSize(); //get pointer to cache position to overwrite later
-		code.add(dword[rbp + getOffset(core, &core.pc)], 0);
+		code.add(word[rbp + getOffset(core, &core.pc)], 0);
 
 		while (true) {
 			auto instr = core.read<uint16_t>(dynarecPC);
@@ -113,16 +113,16 @@ public:
 				case 0x33:
 					emitFallback(Chip8Interpreter::LDBVx, core, instr);
 					code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
-					code.mov(ecx, dword[rbp + getOffset(core, &core.index)]);
-					code.mov(edx, dword[rbp + getOffset(core, &core.index)]);
+					code.mov(ecx, word[rbp + getOffset(core, &core.index)]);
+					code.mov(edx, word[rbp + getOffset(core, &core.index)]);
 					code.add(edx, 2);
 					code.call(rax);
 					break;
 				case 0x55: {
 					emitFallback(Chip8Interpreter::LDIVx, core, instr);
 					code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
-					code.mov(ecx, dword[rbp + getOffset(core, &core.index)]);
-					code.mov(edx, dword[rbp + getOffset(core, &core.index)]);
+					code.mov(ecx, word[rbp + getOffset(core, &core.index)]);
+					code.mov(edx, word[rbp + getOffset(core, &core.index)]);
 					code.add(edx, ((instr & 0x0f00) >> 8));
 					code.call(rax);
 					break;
@@ -150,7 +150,7 @@ public:
 		// Set cycles taken by block retroactively in prologue
 		auto returnPointer = code.getSize();
 		code.setSize(addPCPointer);
-		code.add(dword[rbp + getOffset(core, &core.pc)], cycles * 2);
+		code.add(word[rbp + getOffset(core, &core.pc)], cycles * 2);
 		code.setSize(returnPointer);
 
 		code.add(rsp, 40); // restore stack to original position
