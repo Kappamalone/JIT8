@@ -36,7 +36,7 @@ public:
 	friend class Chip8Dynarec;
 
 
-	std::array<uint8_t, WIDTH* HEIGHT * sizeof(uint32_t)> framebuffer;
+	std::array<uint32_t, WIDTH * HEIGHT> framebuffer;
 	std::array<bool, 16> keyState; //input
 
 	Chip8(GUI* gui, int speed);

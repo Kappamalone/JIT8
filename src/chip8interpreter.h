@@ -207,7 +207,7 @@ public:
 			for (auto j = 0; j < 8; j++) {
 				if (xcoord * 4 + WIDTH * ycoord * 4 >= WIDTH * HEIGHT * 4) { break; }
 
-				auto& pixel = *(uint32_t*)&core.framebuffer[xcoord * 4 + WIDTH * ycoord * 4];
+				auto& pixel = core.framebuffer[xcoord + WIDTH * ycoord];
 				const auto bitdata = (bytedata & (1 << (7 - j))) >> (7 - j);
 				pixel ^= bitdata * 0xffffffff;
 
