@@ -94,22 +94,20 @@ void Chip8::runFrame() {
 		static auto totalCyclesRan = 0; // for debug purposes
 		static auto cpuExecuteFunc = Chip8Dynarec::executeFunc;
 
-		//Run (1/60 * speed) cycles per frame (10 by default)
-		static auto cyclesToRun = speed / 60; //Just in case we allow for updating speed during runtime
+		//execute one frame's worth of instuctions
 		auto cyclesRan = 0;
-
-		while (cyclesRan < cyclesToRun) {
+		while (cyclesRan < (speed / 60)) {
 			cyclesRan += cpuExecuteFunc(*this);
 		}
 
-		totalCyclesRan += cyclesToRun;
+		totalCyclesRan += (speed / 60);
 
-		if (cpuExecuteFunc == Chip8Dynarec::executeFunc && totalCyclesRan > speed * 3) {
-			std::ofstream file("emittedcode.bin", std::ios::binary);
-			file.write((const char*)Chip8Dynarec::code.getCode(), Chip8Dynarec::code.getSize());
-			printf("Exiting...\n");
-			exit(1);
-		}
+		// if (cpuExecuteFunc == Chip8Dynarec::executeFunc && totalCyclesRan > speed * 3) {
+		// 	std::ofstream file("emittedcode.bin", std::ios::binary);
+		// 	file.write((const char*)Chip8Dynarec::code.getCode(), Chip8Dynarec::code.getSize());
+		// 	printf("Exiting...\n");
+		// 	exit(1);
+		// }
 
 		// Handle timers
 		if (delay) --delay;
