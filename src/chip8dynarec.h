@@ -70,13 +70,13 @@ public:
 				}
 
 				break;
-			case 0x1: emitJP(core, instr);  jumpOccured = true; break;
-			case 0x2: emitCALL(core, instr, cycles * 2); jumpOccured = true; break;
-			case 0x3: emitSEVxByte(core, instr, cycles * 2);  jumpOccured = true; break;
+			case 0x1: emitJP(core, instr); jumpOccured = true;                    break;
+			case 0x2: emitCALL(core, instr, cycles * 2); jumpOccured = true;      break;
+			case 0x3: emitSEVxByte(core, instr, cycles * 2); jumpOccured = true;  break;
 			case 0x4: emitSNEVxByte(core, instr, cycles * 2); jumpOccured = true; break;
-			case 0x5: emitSEVxVy(core, instr, cycles * 2);    jumpOccured = true; break;
-			case 0x6: emitLDVxByte(core, instr);  break;
-			case 0x7: emitADDVxByte(core, instr); break;
+			case 0x5: emitSEVxVy(core, instr, cycles * 2); jumpOccured = true;    break;
+			case 0x6: emitLDVxByte(core, instr);                                  break;
+			case 0x7: emitADDVxByte(core, instr);                                 break;
 			case 0x8:
 				switch (instr & 0xf) {
 				case 0x0: emitLDVxVy(core, instr);   break;
@@ -90,15 +90,15 @@ public:
 				case 0xE: emitSHLVxVy(core, instr);  break;
 				default:
 					printf("Unimplemented instr - %04X\n", instr);
-					//exit(1);
+					exit(1);
 				}
 
 				break;
 			case 0x9: emitSNEVxVy(core, instr, cycles * 2); jumpOccured = true; break;
-			case 0xA: emitLDI(core, instr); break;
-			case 0xB: emitJPV0(core, instr);    jumpOccured = true; break;
-				//case 0xC: emitFallback(Chip8Interpreter::RNDVxByte, core, instr); break;
-			case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);                       break;
+			case 0xA: emitLDI(core, instr);                                     break;
+			case 0xB: emitJPV0(core, instr); jumpOccured = true;                break;
+			case 0xC: emitRNDVxByte(core, instr);                               break;
+			case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);        break;
 				// case 0xE:
 				// 	switch (instr & 0xff) {
 				// 	case 0x9E: emitFallback(Chip8Interpreter::SKPVx, core, instr);  jumpOccured = true; break;
@@ -109,41 +109,41 @@ public:
 				// 	}
 
 				// 	break;
-				// case 0xF:
-				// 	switch (instr & 0xff) {
-				// 	case 0x07: emitFallback(Chip8Interpreter::LDVxDT, core, instr);                   break;
-				// 	case 0x0A: emitFallback(Chip8Interpreter::LDVxK, core, instr); jumpOccured = true; break;
-				// 	case 0x15: emitFallback(Chip8Interpreter::LDDTVx, core, instr);                   break;
-				// 	case 0x18: emitFallback(Chip8Interpreter::LDSTVx, core, instr);                   break;
-				// 	case 0x1E: emitFallback(Chip8Interpreter::ADDIVx, core, instr);                   break;
-				// 	case 0x29: emitFallback(Chip8Interpreter::LDFVx, core, instr);                    break;
-				// 	case 0x33:
-				// 		emitFallback(Chip8Interpreter::LDBVx, core, instr);
-				// 		code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
-				// 		code.mov(ecx, word[rbp + getOffset(core, &core.index)]);
-				// 		code.mov(edx, word[rbp + getOffset(core, &core.index)]);
-				// 		code.add(edx, 2);
-				// 		code.call(rax);
-				// 		break;
-				// 	case 0x55: {
-				// 		emitFallback(Chip8Interpreter::LDIVx, core, instr);
-				// 		code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
-				// 		code.mov(ecx, word[rbp + getOffset(core, &core.index)]);
-				// 		code.mov(edx, word[rbp + getOffset(core, &core.index)]);
-				// 		code.add(edx, ((instr & 0x0f00) >> 8));
-				// 		code.call(rax);
-				// 		break;
-				// 	}
-				// 	case 0x65: emitFallback(Chip8Interpreter::LDVxI, core, instr); break;
-				// 	default:
-				// 		printf("Unimplemented instr - %04X\n", instr);
-				// 		//exit(1);
-				// 	}
+			case 0xF:
+				switch (instr & 0xff) {
+				// case 0x07: emitFallback(Chip8Interpreter::LDVxDT, core, instr);                   break;
+				// case 0x0A: emitFallback(Chip8Interpreter::LDVxK, core, instr); jumpOccured = true; break;
+				// case 0x15: emitFallback(Chip8Interpreter::LDDTVx, core, instr);                   break;
+				// case 0x18: emitFallback(Chip8Interpreter::LDSTVx, core, instr);                   break;
+				// case 0x1E: emitFallback(Chip8Interpreter::ADDIVx, core, instr);                   break;
+				// case 0x29: emitFallback(Chip8Interpreter::LDFVx, core, instr);                    break;
+				case 0x33:
+					emitFallback(Chip8Interpreter::LDBVx, core, instr);
+					code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
+					code.mov(ecx, word[rbp + getOffset(core, &core.index)]);
+					code.mov(edx, word[rbp + getOffset(core, &core.index)]);
+					code.add(edx, 2);
+					code.call(rax);
+					break;
+				case 0x55: {
+					emitLDIVx(core, instr);
+					code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
+					code.mov(ecx, word[rbp + getOffset(core, &core.index)]);
+					code.mov(edx, word[rbp + getOffset(core, &core.index)]);
+					code.add(edx, ((instr & 0x0f00) >> 8));
+					code.call(rax);
+					break;
+				}
+				case 0x65: emitLDVxI(core, instr); break;
+				default:
+					printf("Unimplemented instr - %04X\n", instr);
+					exit(1);
+				}
 
-				// 	break;
+				break;
 			default:
 				printf("Unimplemented instr - %04X\n", instr);
-				//exit(1);
+				exit(1);
 			}
 
 			if ((dynarecPC & (pageSize - 1)) == 0 || jumpOccured) { //If we exceed the page boundary, dip
@@ -196,11 +196,9 @@ public:
 		//TODO: block linking?
 		code.dec(byte[rbp + getOffset(core, &core.sp)]);
 
-		code.mov(rdx, (uintptr_t)&core.sp); //load stackpointer
-		code.movzx(r8, byte[rdx]);
-		
-		code.mov(cx, word[rbp + getOffset(core, core.stack.data()) + r8]);
-		code.mov(word[rbp + getOffset(core, &core.pc)], cx);
+		code.movzx(rcx, byte[rbp + getOffset(core, &core.sp)]); //load stack pointer
+		code.mov(dx, word[rbp + getOffset(core, core.stack.data()) + rcx]);
+		code.mov(word[rbp + getOffset(core, &core.pc)], dx);
 	}
 
 	static void emitJP(Chip8& core, uint16_t instr) { //1nnn
@@ -208,20 +206,19 @@ public:
 		code.mov(word[rbp + getOffset(core, &core.pc)], getaddr(instr));
 	}
 
-	static void emitCALL(Chip8& core, uint16_t instr, int PCIncrement) { //0x2nnn (post-increment)
+	static void emitCALL(Chip8& core, uint16_t instr, uint16_t PCIncrement) { //0x2nnn (post-increment)
 		//TODO: block linking?
 		code.mov(cx, word[rbp + getOffset(core, &core.pc)]);
 		code.add(cx, PCIncrement); //update pc before storing it
 
-		code.mov(rdx, (uintptr_t)&core.sp); //load stackpointer
-		code.movzx(r8, byte[rdx]);
+		code.movzx(rdx, byte[rbp + getOffset(core, &core.sp)]); //load stack pointer
 
-		code.mov(word[rbp + getOffset(core, core.stack.data()) + r8], cx);
+		code.mov(word[rbp + getOffset(core, core.stack.data()) + rdx], cx);
 		code.inc(word[rbp + getOffset(core, &core.sp)]);
 		code.mov(word[rbp + getOffset(core, &core.pc)], getaddr(instr));
 	}
 
-	static void emitSEVxByte(Chip8& core, uint16_t instr, int PCIncrement) { //0x3xkk
+	static void emitSEVxByte(Chip8& core, uint16_t instr, uint16_t PCIncrement) { //0x3xkk
 		code.mov(cx, PCIncrement);
 		code.mov(dx, PCIncrement + 2); // +2 to skip next instruction
 		code.cmp(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], getkk(instr));
@@ -229,7 +226,7 @@ public:
 		code.add(word[rbp + getOffset(core, &core.pc)], cx);
 	}
 
-	static void emitSNEVxByte(Chip8& core, uint16_t instr, int PCIncrement) { //0x4xkk
+	static void emitSNEVxByte(Chip8& core, uint16_t instr, uint16_t PCIncrement) { //0x4xkk
 		code.mov(cx, PCIncrement);
 		code.mov(dx, PCIncrement + 2); // +2 to skip next instruction
 		code.cmp(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], getkk(instr));
@@ -237,11 +234,11 @@ public:
 		code.add(word[rbp + getOffset(core, &core.pc)], cx);
 	}
 
-	static void emitSEVxVy(Chip8& core, uint16_t instr, int PCIncrement) { //0x5xy0
+	static void emitSEVxVy(Chip8& core, uint16_t instr, uint16_t PCIncrement) { //0x5xy0
 		code.mov(cx, PCIncrement);
 		code.mov(dx, PCIncrement + 2); // +2 to skip next instruction
-		code.mov(r8d, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]); //32 bit regs most efficient
-		code.cmp(r8d, byte[rbp + getOffset(core, &core.gpr[gety(instr)])]);
+		code.mov(r8b, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
+		code.cmp(r8b, byte[rbp + getOffset(core, &core.gpr[gety(instr)])]);
 		code.cmove(cx, dx); // add instruction skip if cmp = 0
 		code.add(word[rbp + getOffset(core, &core.pc)], cx);
 	}
@@ -308,11 +305,11 @@ public:
 		code.mov(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], cl);
 	}
 
-	static void emitSNEVxVy(Chip8& core, uint16_t instr, int PCIncrement) { //0x9xy0
+	static void emitSNEVxVy(Chip8& core, uint16_t instr, uint16_t PCIncrement) { //0x9xy0
 		code.mov(cx, PCIncrement);
 		code.mov(dx, PCIncrement + 2); // +2 to skip next instruction
-		code.mov(r8d, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]); //32 bit regs most efficient
-		code.cmp(r8d, byte[rbp + getOffset(core, &core.gpr[gety(instr)])]);
+		code.mov(r8b, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
+		code.cmp(r8b, byte[rbp + getOffset(core, &core.gpr[gety(instr)])]);
 		code.cmovne(cx, dx); // add instruction skip if cmp != 0
 		code.add(word[rbp + getOffset(core, &core.pc)], cx);
 	}
@@ -328,7 +325,11 @@ public:
 		code.mov(word[rbp + getOffset(core, &core.pc)], cx);
 	}
 
-	static void emitSKPVx(Chip8& core, uint16_t instr, int PCIncrement) { ////0xEx9E
+	static void emitRNDVxByte(Chip8& core, uint16_t instr) { //Cxkk
+		code.mov(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], (rand() % 256) & getkk(instr));
+	}
+
+	static void emitSKPVx(Chip8& core, uint16_t instr, uint16_t PCIncrement) { ////0xEx9E
 		code.mov(cx, PCIncrement);
 		code.mov(dx, PCIncrement + 2); // +2 to skip next instruction
 		code.cmp(byte[rbp + getOffset(core, &core.keyState[core.gpr[getx(instr)]])], 1);
@@ -336,7 +337,7 @@ public:
 		code.add(word[rbp + getOffset(core, &core.pc)], cx);
 	}
 
-	static void emitSKNPVx(Chip8& core, uint16_t instr, int PCIncrement) { //0xExA1
+	static void emitSKNPVx(Chip8& core, uint16_t instr, uint16_t PCIncrement) { //0xExA1
 		code.mov(cx, PCIncrement);
 		code.mov(dx, PCIncrement + 2); // +2 to skip next instruction
 		code.cmp(byte[rbp + getOffset(core, &core.keyState[core.gpr[getx(instr)]])], 1);
@@ -360,15 +361,61 @@ public:
 	}
 
 	static void LDFVx(Chip8& core, uint16_t instr) { //0xFx29
-		// code.movzx(cx, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
-		// code.mov(word[rbp + getOffset(core, &core.index)], cx * 0x5);
+		code.movzx(cx, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
+		//multiply cx by 5
+		code.mov(dx, cx);
+		code.shl(cx, 2);
+		code.add(cx,dx);
+		code.mov(word[rbp + getOffset(core, &core.index)], cx);
 	}
 
+	//TODO: invalidate range function in assembly
+
 	static void emitLDBVx(Chip8& core, uint16_t instr) { //0xFx33
-		//TODO: invalidate range function in assembly
 		// code.mov(cl, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
 		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index])], cl / 100);
 		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index + 1])], (cl / 10) % 100);
 		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index + 2])], cl % 10);
+	}
+
+	static void emitLDIVx(Chip8& core, uint16_t instr) { //0xFx55
+		// rcx: first holds core.index, then counter
+		// rdx: pointer to core.ram.data() + core.index
+		// r8: pointer to core.gpr.data()
+		// r9b: byte data
+		code.movzx(rcx, word[rbp + getOffset(core, &core.index)]); //load index pointer
+		code.lea(rdx, byte[rbp + getOffset(core, core.ram.data()) + rcx]);
+		code.lea(r8, byte[rbp + getOffset(core, core.gpr.data())]);
+
+		code.xor_(ecx, ecx); //zero out rcx
+
+		Xbyak::Label loop;
+		code.L(loop);
+		code.mov(r9b, byte[r8 + rcx]); // load byte from gpr[counter]
+		code.mov(byte[rdx + rcx], r9b); // write byte to ram[index + counter]
+		code.inc(rcx);
+		code.cmp(rcx, getx(instr) + 1);
+		code.jne(loop);
+	}
+
+	// same thing above but with pointers switched
+	static void emitLDVxI(Chip8& core, uint16_t instr) { //0xFx65
+		// rcx: first holds core.index, then counter
+		// rdx: pointer to core.gpr.data()  
+		// r8: pointer to core.ram.data() + core.index
+		// r9b: byte data
+		code.movzx(rcx, word[rbp + getOffset(core, &core.index)]); //load index pointer
+		code.lea(rdx, byte[rbp + getOffset(core, core.gpr.data())]);
+		code.lea(r8, byte[rbp + getOffset(core, core.ram.data()) + rcx]);
+
+		code.xor_(ecx, ecx); //zero out ecx
+
+		Xbyak::Label loop;
+		code.L(loop);
+		code.mov(r9b, byte[r8 + rcx]); // load byte from gpr[counter]
+		code.mov(byte[rdx + rcx], r9b); // set byte in ram[index + counter]
+		code.inc(rcx);
+		code.cmp(rcx, getx(instr) + 1);
+		code.jne(loop);
 	}
 };

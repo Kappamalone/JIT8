@@ -50,24 +50,24 @@ public:
 		while (true) {
 			auto instr = core.read<uint16_t>(dynarecPC);
 			dynarecPC += 2;
-			auto breakCache = false;
+			auto jumpOccured = false;
 
 			switch (((instr) & 0xf000) >> 12) {
 			case 0x0:
 				switch (instr & 0xfff) {
 				case 0x0E0: emitFallback(Chip8Interpreter::CLS, core, instr);                    break;
-				case 0x0EE: emitFallback(Chip8Interpreter::RET, core, instr); breakCache = true; break;
+				case 0x0EE: emitFallback(Chip8Interpreter::RET, core, instr); jumpOccured = true; break;
 				default:
 					printf("Unimplemented Instruction - %04X\n", instr);
 					//exit(1);
 				}
 
 				break;
-			case 0x1: emitFallback(Chip8Interpreter::JP, core, instr);        breakCache = true; break;
-			case 0x2: emitFallback(Chip8Interpreter::CALL, core, instr);      breakCache = true; break;
-			case 0x3: emitFallback(Chip8Interpreter::SEVxByte, core, instr);  breakCache = true; break;
-			case 0x4: emitFallback(Chip8Interpreter::SNEVxByte, core, instr); breakCache = true; break;
-			case 0x5: emitFallback(Chip8Interpreter::SEVxVy, core, instr);    breakCache = true; break;
+			case 0x1: emitFallback(Chip8Interpreter::JP, core, instr);        jumpOccured = true; break;
+			case 0x2: emitFallback(Chip8Interpreter::CALL, core, instr);      jumpOccured = true; break;
+			case 0x3: emitFallback(Chip8Interpreter::SEVxByte, core, instr);  jumpOccured = true; break;
+			case 0x4: emitFallback(Chip8Interpreter::SNEVxByte, core, instr); jumpOccured = true; break;
+			case 0x5: emitFallback(Chip8Interpreter::SEVxVy, core, instr);    jumpOccured = true; break;
 			case 0x6: emitFallback(Chip8Interpreter::LDVxByte, core, instr);                     break;
 			case 0x7: emitFallback(Chip8Interpreter::ADDVxByte, core, instr);                    break;
 			case 0x8:
@@ -87,15 +87,15 @@ public:
 				}
 
 				break;
-			case 0x9: emitFallback(Chip8Interpreter::SNEVxVy, core, instr); breakCache = true; break;
+			case 0x9: emitFallback(Chip8Interpreter::SNEVxVy, core, instr); jumpOccured = true; break;
 			case 0xA: emitFallback(Chip8Interpreter::LDI, core, instr);                        break;
-			case 0xB: emitFallback(Chip8Interpreter::JPV0, core, instr);    breakCache = true; break;
+			case 0xB: emitFallback(Chip8Interpreter::JPV0, core, instr);    jumpOccured = true; break;
 			case 0xC: emitFallback(Chip8Interpreter::RNDVxByte, core, instr); break;
 			case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);                       break;
 			case 0xE:
 				switch (instr & 0xff) {
-				case 0x9E: emitFallback(Chip8Interpreter::SKPVx, core, instr);  breakCache = true; break;
-				case 0xA1: emitFallback(Chip8Interpreter::SKNPVx, core, instr); breakCache = true; break;
+				case 0x9E: emitFallback(Chip8Interpreter::SKPVx, core, instr);  jumpOccured = true; break;
+				case 0xA1: emitFallback(Chip8Interpreter::SKNPVx, core, instr); jumpOccured = true; break;
 				default:
 					printf("Unimplemented Instruction - %04X\n", instr);
 					//exit(1);
@@ -105,7 +105,7 @@ public:
 			case 0xF:
 				switch (instr & 0xff) {
 				case 0x07: emitFallback(Chip8Interpreter::LDVxDT, core, instr);                   break;
-				case 0x0A: emitFallback(Chip8Interpreter::LDVxK, core, instr); breakCache = true; break;
+				case 0x0A: emitFallback(Chip8Interpreter::LDVxK, core, instr); jumpOccured = true; break;
 				case 0x15: emitFallback(Chip8Interpreter::LDDTVx, core, instr);                   break;
 				case 0x18: emitFallback(Chip8Interpreter::LDSTVx, core, instr);                   break;
 				case 0x1E: emitFallback(Chip8Interpreter::ADDIVx, core, instr);                   break;
@@ -140,7 +140,7 @@ public:
 			}
 
 			++cycles;
-			if ((dynarecPC & (pageSize - 1)) == 0 || breakCache) { //If we exceed the page boundary, dip
+			if ((dynarecPC & (pageSize - 1)) == 0 || jumpOccured) { //If we exceed the page boundary, dip
 				break;
 			}
 		}
