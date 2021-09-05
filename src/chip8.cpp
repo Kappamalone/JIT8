@@ -21,7 +21,7 @@ Chip8::Chip8(GUI* gui, int speed) {
 	keyState.fill(0);
 	framebuffer.fill(0);
 
-	loadRom("../../roms/testroms/test_opcode.ch8");
+	loadRom("../../roms/testroms/bc_test.ch8");
 	//loadRom("../../roms/invaders");
 	loadFonts();
 };

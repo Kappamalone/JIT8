@@ -99,31 +99,27 @@ public:
 			case 0xB: emitJPV0(core, instr); jumpOccured = true;                break;
 			case 0xC: emitRNDVxByte(core, instr);                               break;
 			case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);        break;
-				// case 0xE:
-				// 	switch (instr & 0xff) {
-				// 	case 0x9E: emitFallback(Chip8Interpreter::SKPVx, core, instr);  jumpOccured = true; break;
-				// 	case 0xA1: emitFallback(Chip8Interpreter::SKNPVx, core, instr); jumpOccured = true; break;
-				// 	default:
-				// 		printf("Unimplemented instr - %04X\n", instr);
-				// 		//exit(1);
-				// 	}
+			case 0xE:
+				switch (instr & 0xff) {
+				case 0x9E: emitSKPVx(core, instr, cycles * 2);  jumpOccured = true; break;
+				case 0xA1: emitSKNPVx(core, instr, cycles * 2); jumpOccured = true; break;
+				default:
+					printf("Unimplemented instr - %04X\n", instr);
+					//exit(1);
+				}
 
-				// 	break;
+				break;
 			case 0xF:
 				switch (instr & 0xff) {
-				// case 0x07: emitFallback(Chip8Interpreter::LDVxDT, core, instr);                   break;
-				// case 0x0A: emitFallback(Chip8Interpreter::LDVxK, core, instr); jumpOccured = true; break;
-				// case 0x15: emitFallback(Chip8Interpreter::LDDTVx, core, instr);                   break;
-				// case 0x18: emitFallback(Chip8Interpreter::LDSTVx, core, instr);                   break;
-				// case 0x1E: emitFallback(Chip8Interpreter::ADDIVx, core, instr);                   break;
-				// case 0x29: emitFallback(Chip8Interpreter::LDFVx, core, instr);                    break;
+				case 0x07: emitLDVxDT(core, instr);                   break;
+				//case 0x0A: emitFallback(Chip8Interpreter::LDVxK, core, instr); jumpOccured = true; break;
+				case 0x15: emitLDDTVx(core, instr);                   break;
+				case 0x18: emitLDSTVx(core, instr);                   break;
+				case 0x1E: emitADDIVx(core, instr);                   break;
+				case 0x29: emitLDFVx(core, instr);                    break;
 				case 0x33:
 					emitFallback(Chip8Interpreter::LDBVx, core, instr);
-					code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
-					code.mov(ecx, word[rbp + getOffset(core, &core.index)]);
-					code.mov(edx, word[rbp + getOffset(core, &core.index)]);
-					code.add(edx, 2);
-					code.call(rax);
+					emitInvalidateRange(core, 2);
 					break;
 				case 0x55: {
 					emitLDIVx(core, instr);
@@ -137,7 +133,7 @@ public:
 				case 0x65: emitLDVxI(core, instr); break;
 				default:
 					printf("Unimplemented instr - %04X\n", instr);
-					exit(1);
+					//exit(1);
 				}
 
 				break;
@@ -152,7 +148,6 @@ public:
 		}
 
 		//Function epilogue
-
 		if (!jumpOccured) {
 			code.add(word[rbp + getOffset(core, &core.pc)], cycles * 2);
 		}
@@ -188,6 +183,12 @@ public:
 		const auto startPage = startAddress >> pageShift;
 		const auto endPage = endAddress >> pageShift;
 		memset(&blockPageTable[startPage], 0, (endPage - startPage + 1) * sizeof(fp));
+	}
+
+	// Invalidates all blocks from an inclusive startAddress and endAddress
+	// Only works with index relative stuff
+	static void emitInvalidateRange(Chip8& core, uint16_t size) {
+		
 	}
 
 	// Recompilation
@@ -280,7 +281,7 @@ public:
 	static void emitSUBVxVy(Chip8& core, uint16_t instr) { //0x8xy5
 		code.mov(cl, byte[rbp + getOffset(core, &core.gpr[gety(instr)])]);
 		code.sub(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], cl);
-		code.setno(byte[rbp + getOffset(core, &core.gpr[0xf])]); // set not borrow
+		code.setg(byte[rbp + getOffset(core, &core.gpr[0xf])]); // set not borrow
 	}
 
 	static void emitSHRVxVy(Chip8& core, uint16_t instr) { //0x8xy6
@@ -294,7 +295,7 @@ public:
 		code.mov(cl, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
 		code.mov(dl, byte[rbp + getOffset(core, &core.gpr[gety(instr)])]);
 		code.sub(dl, cl); //sub y from x
-		code.setno(byte[rbp + getOffset(core, &core.gpr[0xf])]); //set not borrow
+		code.setg(byte[rbp + getOffset(core, &core.gpr[0xf])]); //set not borrow
 		code.mov(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], dl); //store into x
 	}
 
@@ -345,22 +346,27 @@ public:
 		code.add(word[rbp + getOffset(core, &core.pc)], cx);
 	}
 
+	static void emitLDVxDT(Chip8& core, uint16_t instr) { //0xFx07
+		code.mov(cl, byte[rbp + getOffset(core, &core.delay)]);
+		code.mov(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], cl);
+	}
+
 	static void emitLDDTVx(Chip8& core, uint16_t instr) { //0xFx15
 		code.mov(cl, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
 		code.mov(word[rbp + getOffset(core, &core.delay)], cl);
 	}
 
-	static void LDSTVx(Chip8& core, uint16_t instr) { //0xFx18
+	static void emitLDSTVx(Chip8& core, uint16_t instr) { //0xFx18
 		code.mov(cl, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
 		code.mov(word[rbp + getOffset(core, &core.sound)], cl);
 	}
 
-	static void ADDIVx(Chip8& core, uint16_t instr) { //0xFx1E
+	static void emitADDIVx(Chip8& core, uint16_t instr) { //0xFx1E
 		code.movzx(cx, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
 		code.add(word[rbp + getOffset(core, &core.index)], cx);
 	}
 
-	static void LDFVx(Chip8& core, uint16_t instr) { //0xFx29
+	static void emitLDFVx(Chip8& core, uint16_t instr) { //0xFx29
 		code.movzx(cx, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
 		//multiply cx by 5
 		code.mov(dx, cx);
@@ -389,6 +395,7 @@ public:
 
 		code.xor_(ecx, ecx); //zero out rcx
 
+		//TODO: inspect this in ida, might need a local label
 		Xbyak::Label loop;
 		code.L(loop);
 		code.mov(r9b, byte[r8 + rcx]); // load byte from gpr[counter]
