@@ -1,8 +1,8 @@
 #include <mutex>
 #include <thread>
 #include <chrono>
-#include <fstream>
 #include <condition_variable>
+#include <fstream>
 #include <gui.h>
 #include <chip8.h>
 #include <chip8interpreter.h>
@@ -21,12 +21,14 @@ Chip8::Chip8(GUI* gui, int speed) {
 	keyState.fill(0);
 	framebuffer.fill(0);
 
-	loadRom("../../roms/testroms/bc_test.ch8");
-	//loadRom("../../roms/invaders");
+	//loadRom("../../roms/testroms/bc_test.ch8");
+	loadRom("../../roms/invaders");
 	loadFonts();
 };
 
 Chip8::~Chip8() {
+	dumpCodeCache();
+
 	for (auto& i : Chip8CachedInterpreter::blockPageTable) {
 		delete[] i;
 	}
@@ -56,6 +58,8 @@ void Chip8::loadRom(const char* path) { //TODO: throw error if file not found
 
 template <typename T>
 auto Chip8::read(uint16_t addr) -> T {
+	assert(addr <= 0xfff);
+
 	if constexpr (std::is_same<T, uint8_t>::value) {
 		return ram[addr];
 	}
@@ -87,6 +91,11 @@ void Chip8::loadFonts() {
 	memcpy(ram.data(), fonts.data(), fonts.size());
 }
 
+void Chip8::dumpCodeCache() {
+	std::ofstream file("emittedcode.bin", std::ios::binary);
+	file.write((const char*)Chip8Dynarec::code.getCode(), Chip8Dynarec::code.getSize());
+}
+
 void Chip8::runFrame() {
 	while (true) {
 		waitForPing();
@@ -101,13 +110,6 @@ void Chip8::runFrame() {
 		}
 
 		totalCyclesRan += (speed / 60);
-
-		// if (cpuExecuteFunc == Chip8Dynarec::executeFunc && totalCyclesRan > speed * 3) {
-		// 	std::ofstream file("emittedcode.bin", std::ios::binary);
-		// 	file.write((const char*)Chip8Dynarec::code.getCode(), Chip8Dynarec::code.getSize());
-		// 	printf("Exiting...\n");
-		// 	exit(1);
-		// }
 
 		// Handle timers
 		if (delay) --delay;

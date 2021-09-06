@@ -34,7 +34,7 @@ public:
 
 		runFrame = false;
 		isFramerateCapped = true;
-		window.setFramerateLimit(60);
+		window.setFramerateLimit(0);
 
 		//Initialise SFML stuff
 		texture.create(64, 32);

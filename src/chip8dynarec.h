@@ -24,7 +24,7 @@ public:
 	}
 
 	static int executeFunc(Chip8& core) {
-		printf("%04X\n", core.pc);
+		//printf("%04X\n", core.pc);
 
 		auto& page = blockPageTable[core.pc >> pageShift];
 		if (!page) {  // if page hasn't been allocated yet, allocate
@@ -62,7 +62,7 @@ public:
 			switch (getidentifier(instr)) {
 			case 0x0:
 				switch (getaddr(instr)) {
-				case 0x0E0: emitFallback(Chip8Interpreter::CLS, core, instr);                    break;
+				case 0x0E0: emitCLS(core, instr);                    break;
 				case 0x0EE: emitRET(core, instr); jumpOccured = true; break;
 				default:
 					printf("Unimplemented instr - %04X\n", instr);
@@ -112,14 +112,19 @@ public:
 			case 0xF:
 				switch (instr & 0xff) {
 				case 0x07: emitLDVxDT(core, instr);                   break;
-				//case 0x0A: emitFallback(Chip8Interpreter::LDVxK, core, instr); jumpOccured = true; break;
+				case 0x0A: emitLDVxK(core, instr, cycles * 2); jumpOccured = true; break;
 				case 0x15: emitLDDTVx(core, instr);                   break;
 				case 0x18: emitLDSTVx(core, instr);                   break;
 				case 0x1E: emitADDIVx(core, instr);                   break;
 				case 0x29: emitLDFVx(core, instr);                    break;
 				case 0x33:
 					emitFallback(Chip8Interpreter::LDBVx, core, instr);
-					emitInvalidateRange(core, 2);
+					code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
+					code.mov(ecx, word[rbp + getOffset(core, &core.index)]);
+					code.mov(edx, word[rbp + getOffset(core, &core.index)]);
+					code.add(edx, 2);
+					code.call(rax);
+					//emitInvalidateRange(core, 2);
 					break;
 				case 0x55: {
 					emitLDIVx(core, instr);
@@ -188,17 +193,28 @@ public:
 	// Invalidates all blocks from an inclusive startAddress and endAddress
 	// Only works with index relative stuff
 	static void emitInvalidateRange(Chip8& core, uint16_t size) {
-		
 	}
 
 	// Recompilation
+
+	static void emitCLS(Chip8& core, uint16_t instr) { //0x00E0
+		// framebuffer = 64 * 32 * 4 = 8192 bytes
+		// ymmword = 256 bits = 32 bytes
+		// so 8192/32 = 256 ymmword stores
+		code.xorps(xmm0, xmm0);
+		for (auto i = 0; i < 256; i++) {
+			//code.vmovaps(yword[rbp + getOffset(core, core.framebuffer.data()) + i * 32], ymm0);
+			code.vmovdqa(yword[rbp + getOffset(core, core.framebuffer.data()) + i * 32], ymm0);
+		}
+		code.vzeroupper(); //TODO: learn about AVX context
+	}
 
 	static void emitRET(Chip8& core, uint16_t instr) { //0x00EE (post-increment)
 		//TODO: block linking?
 		code.dec(byte[rbp + getOffset(core, &core.sp)]);
 
 		code.movzx(rcx, byte[rbp + getOffset(core, &core.sp)]); //load stack pointer
-		code.mov(dx, word[rbp + getOffset(core, core.stack.data()) + rcx]);
+		code.mov(dx, word[rbp + getOffset(core, core.stack.data()) + rcx * sizeof(uint16_t)]);
 		code.mov(word[rbp + getOffset(core, &core.pc)], dx);
 	}
 
@@ -214,7 +230,7 @@ public:
 
 		code.movzx(rdx, byte[rbp + getOffset(core, &core.sp)]); //load stack pointer
 
-		code.mov(word[rbp + getOffset(core, core.stack.data()) + rdx], cx);
+		code.mov(word[rbp + getOffset(core, core.stack.data()) + rdx * sizeof(uint16_t)], cx);
 		code.inc(word[rbp + getOffset(core, &core.sp)]);
 		code.mov(word[rbp + getOffset(core, &core.pc)], getaddr(instr));
 	}
@@ -333,7 +349,8 @@ public:
 	static void emitSKPVx(Chip8& core, uint16_t instr, uint16_t PCIncrement) { ////0xEx9E
 		code.mov(cx, PCIncrement);
 		code.mov(dx, PCIncrement + 2); // +2 to skip next instruction
-		code.cmp(byte[rbp + getOffset(core, &core.keyState[core.gpr[getx(instr)]])], 1);
+		code.movzx(r8, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
+		code.cmp(byte[rbp + getOffset(core, &core.keyState) + r8], 1);
 		code.cmove(cx, dx); // add instruction skip if cmp = 0
 		code.add(word[rbp + getOffset(core, &core.pc)], cx);
 	}
@@ -341,7 +358,8 @@ public:
 	static void emitSKNPVx(Chip8& core, uint16_t instr, uint16_t PCIncrement) { //0xExA1
 		code.mov(cx, PCIncrement);
 		code.mov(dx, PCIncrement + 2); // +2 to skip next instruction
-		code.cmp(byte[rbp + getOffset(core, &core.keyState[core.gpr[getx(instr)]])], 1);
+		code.movzx(r8, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
+		code.cmp(byte[rbp + getOffset(core, &core.keyState) + r8], 1);
 		code.cmovne(cx, dx); // remove instruction skip if cmp = 0
 		code.add(word[rbp + getOffset(core, &core.pc)], cx);
 	}
@@ -371,11 +389,22 @@ public:
 		//multiply cx by 5
 		code.mov(dx, cx);
 		code.shl(cx, 2);
-		code.add(cx,dx);
+		code.add(cx, dx);
 		code.mov(word[rbp + getOffset(core, &core.index)], cx);
 	}
 
 	//TODO: invalidate range function in assembly
+
+	static void emitLDVxK(Chip8& core, uint16_t instr, uint16_t PCIncrement) { //0xFx0A
+		// for (auto i = 0; i < core.keyState.size(); i++) {
+		// 	if (core.keyState[i]) {
+		// 		core.gpr[getx(instr)] = i;
+		// 		return;
+		// 	}
+		// }
+		// core.pc -= 2;
+
+	}
 
 	static void emitLDBVx(Chip8& core, uint16_t instr) { //0xFx33
 		// code.mov(cl, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
@@ -396,6 +425,7 @@ public:
 		code.xor_(ecx, ecx); //zero out rcx
 
 		//TODO: inspect this in ida, might need a local label
+		//TODO: you idiot, use a for loop
 		Xbyak::Label loop;
 		code.L(loop);
 		code.mov(r9b, byte[r8 + rcx]); // load byte from gpr[counter]

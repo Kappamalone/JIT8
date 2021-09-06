@@ -2,7 +2,6 @@
 #include <array>
 #include <vector>
 #include <thread>
-#include <atomic>
 #include <stdint.h>
 #include <gui.h>
 
@@ -36,7 +35,7 @@ public:
 	friend class Chip8Dynarec;
 
 
-	std::array<uint32_t, WIDTH * HEIGHT> framebuffer;
+	alignas(32) std::array<uint32_t, WIDTH* HEIGHT> framebuffer;
 	std::array<bool, 16> keyState; //input
 
 	Chip8(GUI* gui, int speed);
@@ -49,5 +48,7 @@ public:
 
 	//Utility stuff
 	template <typename T>
-	auto read(uint16_t addr)->T;
+	T read(uint16_t addr);
+
+	void dumpCodeCache();
 };

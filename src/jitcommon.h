@@ -1,4 +1,3 @@
-//TODO: define registers with relevant names and make compatible with system-v abi
 #pragma once
 #include <xbyak/xbyak.h>
 
@@ -17,6 +16,6 @@ public:
 	}
 };
 
-constexpr int pageSize = 8; // size of cache pages
-constexpr int pageShift = 3; // shift required to get page froma given address
+constexpr int pageSize = 32; // size of cache pages
+constexpr int pageShift = 5; // shift required to get page froma given address
 //TODO: ctz
