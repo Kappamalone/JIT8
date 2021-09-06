@@ -62,7 +62,7 @@ public:
 			switch (getidentifier(instr)) {
 			case 0x0:
 				switch (getaddr(instr)) {
-				case 0x0E0: emitCLS(core, instr);                    break;
+				case 0x0E0: emitCLS(core, instr);                     break;
 				case 0x0EE: emitRET(core, instr); jumpOccured = true; break;
 				default:
 					printf("Unimplemented instr - %04X\n", instr);
@@ -111,28 +111,19 @@ public:
 				break;
 			case 0xF:
 				switch (instr & 0xff) {
-				case 0x07: emitLDVxDT(core, instr);                   break;
+				case 0x07: emitLDVxDT(core, instr);                                break;
 				case 0x0A: emitLDVxK(core, instr, cycles * 2); jumpOccured = true; break;
-				case 0x15: emitLDDTVx(core, instr);                   break;
-				case 0x18: emitLDSTVx(core, instr);                   break;
-				case 0x1E: emitADDIVx(core, instr);                   break;
-				case 0x29: emitLDFVx(core, instr);                    break;
+				case 0x15: emitLDDTVx(core, instr);                                break;
+				case 0x18: emitLDSTVx(core, instr);                                break;
+				case 0x1E: emitADDIVx(core, instr);                                break;
+				case 0x29: emitLDFVx(core, instr);                                 break;
 				case 0x33:
 					emitFallback(Chip8Interpreter::LDBVx, core, instr);
-					code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
-					code.mov(ecx, word[rbp + getOffset(core, &core.index)]);
-					code.mov(edx, word[rbp + getOffset(core, &core.index)]);
-					code.add(edx, 2);
-					code.call(rax);
-					//emitInvalidateRange(core, 2);
+					emitInvalidateRange(core, 3);
 					break;
 				case 0x55: {
 					emitLDIVx(core, instr);
-					code.mov(rax, (uintptr_t)Chip8CachedInterpreter::invalidateRange);
-					code.mov(ecx, word[rbp + getOffset(core, &core.index)]);
-					code.mov(edx, word[rbp + getOffset(core, &core.index)]);
-					code.add(edx, ((instr & 0x0f00) >> 8));
-					code.call(rax);
+					emitInvalidateRange(core, getx(instr)+1);
 					break;
 				}
 				case 0x65: emitLDVxI(core, instr); break;
@@ -192,7 +183,31 @@ public:
 
 	// Invalidates all blocks from an inclusive startAddress and endAddress
 	// Only works with index relative stuff
-	static void emitInvalidateRange(Chip8& core, uint16_t size) {
+	// I also don't know if this actually works with self modifying code
+	static void emitInvalidateRange(Chip8& core, uint16_t numElementsWritten) {
+		// rax: counter
+		// rcx: start page
+		// rdx: end page, then page count
+		// r8: pointer to blockPageTable[start page]
+
+		code.movzx(rcx, word[rbp + getOffset(core, &core.index)]);
+		code.mov(rdx, rcx);
+		code.mov(r8, (uintptr_t)&blockPageTable);
+
+		code.shr(rcx, pageShift);          //rcx >>= pageShift
+		code.add(rdx, numElementsWritten); //rdx = core.index + numElementsWritten
+		code.shr(rdx, pageShift);		   //rdx >>= pageShift
+		code.sub(rdx, rcx);				   //rdx = rdx - rcx
+		code.mov(rax, rdx);				   //rax = rdx
+		code.inc(rax);                     // loop endpage-startpage+1 times
+
+		code.lea(r8, ptr[r8 + rcx * sizeof(fp)]);
+
+		Xbyak::Label loop;
+		code.L(loop);
+		code.mov(qword[r8 + rax * sizeof(fp)], 0);
+		code.dec(eax);
+		code.jnz(loop);
 	}
 
 	// Recompilation
@@ -396,14 +411,30 @@ public:
 	//TODO: invalidate range function in assembly
 
 	static void emitLDVxK(Chip8& core, uint16_t instr, uint16_t PCIncrement) { //0xFx0A
-		// for (auto i = 0; i < core.keyState.size(); i++) {
-		// 	if (core.keyState[i]) {
-		// 		core.gpr[getx(instr)] = i;
-		// 		return;
-		// 	}
-		// }
-		// core.pc -= 2;
+		Xbyak::Label label1;
+		Xbyak::Label label2;
+		Xbyak::Label loop;
 
+		code.mov(cx, PCIncrement - 2);
+		code.xor_(r8d, r8d);
+		code.jmp(loop);
+
+		// takes dl: index
+		code.L(label1);
+		code.mov(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], dl);
+		code.add(cx, 2); // resume execution by removing pc-2
+		code.jmp(label2);
+
+		code.L(loop);
+		code.cmp(byte[rbp + getOffset(core, core.keyState.data()) + r8], 1); //if (core.keyState[i])
+		code.mov(dl, r8b); //move index into dl
+		code.je(label1);
+		code.inc(r8); //increment counter
+		code.cmp(r8, core.keyState.size()); // for(auto i = 0; i < size; i++)
+		code.jne(loop);
+
+		code.L(label2);
+		code.add(word[rbp + getOffset(core, &core.pc)], cx);
 	}
 
 	static void emitLDBVx(Chip8& core, uint16_t instr) { //0xFx33
@@ -424,7 +455,6 @@ public:
 
 		code.xor_(ecx, ecx); //zero out rcx
 
-		//TODO: inspect this in ida, might need a local label
 		//TODO: you idiot, use a for loop
 		Xbyak::Label loop;
 		code.L(loop);

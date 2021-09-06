@@ -16,7 +16,7 @@ private:
 
 	//Config
 	int speed; //how many cycles executed in a second
-
+	
 	//Memory
 	std::array<uint8_t, 4096> ram;
 	std::array<uint16_t, 16> stack;

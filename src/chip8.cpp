@@ -14,15 +14,14 @@ Chip8::Chip8(GUI* gui, int speed) {
 	this->speed = speed;
 
 	pc = 0x200;
-
 	ram.fill(0);
 	stack.fill(0);
 	gpr.fill(0);
 	keyState.fill(0);
 	framebuffer.fill(0);
 
-	//loadRom("../../roms/testroms/bc_test.ch8");
-	loadRom("../../roms/invaders");
+	loadRom("../../roms/testroms/bc_test.ch8");
+	//loadRom("../../roms/invaders");
 	loadFonts();
 };
 

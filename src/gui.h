@@ -9,6 +9,8 @@
 #include <SFML/Graphics/Sprite.hpp>
 #include <chip8.h>
 
+//TODO: sound, fix keybindings, framerate counter, LDBVx and DYXN
+
 class GUI {
 private:
 	sf::RenderWindow window;
@@ -19,7 +21,16 @@ private:
 	Chip8 core;
 
 	//config
-	bool isFramerateCapped;
+	bool isFrameLimited; //controls frame limiting
+	void toggleFramelimiter() {
+		 isFrameLimited ^= true;
+		 if (isFrameLimited) {
+			 window.setFramerateLimit(60);
+		 } else {
+			 window.setFramerateLimit(0);
+		 }
+	}
+
 
 public:
 	bool runFrame;
@@ -33,8 +44,8 @@ public:
 		emu_thread.detach(); //fly free, emu thread...
 
 		runFrame = false;
-		isFramerateCapped = true;
-		window.setFramerateLimit(0);
+		isFrameLimited = true;
+		window.setFramerateLimit(60);
 
 		//Initialise SFML stuff
 		texture.create(64, 32);
@@ -109,6 +120,9 @@ public:
 				window.close();
 				break;
 			case sf::Event::KeyPressed:
+				if (event.key.code == sf::Keyboard::I) {
+					toggleFramelimiter();
+				}
 				core.keyState[keyMappings[event.key.code]] = true;
 				break;
 			case sf::Event::KeyReleased:
