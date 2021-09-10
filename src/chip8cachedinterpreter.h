@@ -16,7 +16,7 @@ public:
 	}
 
 	static int executeFunc(Chip8& core) {
-		printf("%04X\n", core.pc);
+		//printf("%04X\n", core.pc);
 
 		auto& page = blockPageTable[core.pc >> pageShift];
 		if (!page) {  // if page hasn't been allocated yet, allocate

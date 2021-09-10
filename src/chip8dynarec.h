@@ -27,12 +27,12 @@ public:
 		//printf("%04X\n", core.pc);
 
 		auto& page = blockPageTable[core.pc >> pageShift];
-		if (!page) {  // if page hasn't been allocated yet, allocate
+		if (!page) [[unlikely]] {  // if page hasn't been allocated yet, allocate
 			page = new fp[pageSize](); //blocks could be half the size, but I'm not sure about alignment
 		}
 
 		auto& block = page[core.pc & (pageSize - 1)];
-		if (!block) { // if recompiled block doesn't exist, recompile
+		if (!block) [[unlikely]] { // if recompiled block doesn't exist, recompile
 			block = recompileBlock(core);
 		}
 
@@ -99,6 +99,7 @@ public:
 			case 0xB: emitJPV0(core, instr); jumpOccured = true;                break;
 			case 0xC: emitRNDVxByte(core, instr);                               break;
 			case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);        break;
+				//case 0xD: emitDXYN(core, instr); break;
 			case 0xE:
 				switch (instr & 0xff) {
 				case 0x9E: emitSKPVx(core, instr, cycles * 2);  jumpOccured = true; break;
@@ -118,12 +119,12 @@ public:
 				case 0x1E: emitADDIVx(core, instr);                                break;
 				case 0x29: emitLDFVx(core, instr);                                 break;
 				case 0x33:
-					emitFallback(Chip8Interpreter::LDBVx, core, instr);
+					emitLDBVx(core, instr);
 					emitInvalidateRange(core, 3);
 					break;
 				case 0x55: {
 					emitLDIVx(core, instr);
-					emitInvalidateRange(core, getx(instr)+1);
+					emitInvalidateRange(core, getx(instr) + 1);
 					break;
 				}
 				case 0x65: emitLDVxI(core, instr); break;
@@ -158,7 +159,7 @@ public:
 
 	// Check if code cache is close to being exhausted
 	static void checkCodeCache() {
-		if (code.getSize() + cacheLeeway > cacheSize) { //We've nearly exhausted code cache, so throw it out
+		if (code.getSize() + cacheLeeway > cacheSize) [[unlikely]] { //We've nearly exhausted code cache, so throw it out
 			code.reset();
 			memset(blockPageTable, 0, sizeof(blockPageTable));
 			printf("Code Cache Exhausted!!\n");
@@ -171,14 +172,6 @@ public:
 		code.mov(rcx, (uintptr_t)&core);
 		code.mov(edx, instr);
 		code.call(rax);
-	}
-
-	//TODO: handle wrapping
-	// Invalidates all blocks from an inclusive startAddress and endAddress
-	static void invalidateRange(uint16_t startAddress, uint16_t endAddress) {
-		const auto startPage = startAddress >> pageShift;
-		const auto endPage = endAddress >> pageShift;
-		memset(&blockPageTable[startPage], 0, (endPage - startPage + 1) * sizeof(fp));
 	}
 
 	// Invalidates all blocks from an inclusive startAddress and endAddress
@@ -225,7 +218,6 @@ public:
 	}
 
 	static void emitRET(Chip8& core, uint16_t instr) { //0x00EE (post-increment)
-		//TODO: block linking?
 		code.dec(byte[rbp + getOffset(core, &core.sp)]);
 
 		code.movzx(rcx, byte[rbp + getOffset(core, &core.sp)]); //load stack pointer
@@ -234,12 +226,10 @@ public:
 	}
 
 	static void emitJP(Chip8& core, uint16_t instr) { //1nnn
-		//TODO: block linking?
 		code.mov(word[rbp + getOffset(core, &core.pc)], getaddr(instr));
 	}
 
 	static void emitCALL(Chip8& core, uint16_t instr, uint16_t PCIncrement) { //0x2nnn (post-increment)
-		//TODO: block linking?
 		code.mov(cx, word[rbp + getOffset(core, &core.pc)]);
 		code.add(cx, PCIncrement); //update pc before storing it
 
@@ -361,6 +351,11 @@ public:
 		code.mov(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], (rand() % 256) & getkk(instr));
 	}
 
+	// Final boss
+	static void emitDXYN(Chip8& core, uint16_t instr) { //Dxyn
+
+	}
+
 	static void emitSKPVx(Chip8& core, uint16_t instr, uint16_t PCIncrement) { ////0xEx9E
 		code.mov(cx, PCIncrement);
 		code.mov(dx, PCIncrement + 2); // +2 to skip next instruction
@@ -386,12 +381,12 @@ public:
 
 	static void emitLDDTVx(Chip8& core, uint16_t instr) { //0xFx15
 		code.mov(cl, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
-		code.mov(word[rbp + getOffset(core, &core.delay)], cl);
+		code.mov(byte[rbp + getOffset(core, &core.delay)], cl);
 	}
 
 	static void emitLDSTVx(Chip8& core, uint16_t instr) { //0xFx18
 		code.mov(cl, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
-		code.mov(word[rbp + getOffset(core, &core.sound)], cl);
+		code.mov(byte[rbp + getOffset(core, &core.sound)], cl);
 	}
 
 	static void emitADDIVx(Chip8& core, uint16_t instr) { //0xFx1E
@@ -400,11 +395,8 @@ public:
 	}
 
 	static void emitLDFVx(Chip8& core, uint16_t instr) { //0xFx29
-		code.movzx(cx, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
-		//multiply cx by 5
-		code.mov(dx, cx);
-		code.shl(cx, 2);
-		code.add(cx, dx);
+		code.mov(cx, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
+		code.lea(cx, ptr[cx * 4 + cx]); // multiply cx by 5
 		code.mov(word[rbp + getOffset(core, &core.index)], cx);
 	}
 
@@ -442,47 +434,37 @@ public:
 		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index])], cl / 100);
 		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index + 1])], (cl / 10) % 100);
 		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index + 2])], cl % 10);
+		emitFallback(Chip8Interpreter::LDBVx, core, instr);
 	}
 
 	static void emitLDIVx(Chip8& core, uint16_t instr) { //0xFx55
-		// rcx: first holds core.index, then counter
+		// rcx: core.index
 		// rdx: pointer to core.ram.data() + core.index
-		// r8: pointer to core.gpr.data()
+		// r8:  pointer to core.gpr.data()
 		// r9b: byte data
 		code.movzx(rcx, word[rbp + getOffset(core, &core.index)]); //load index pointer
-		code.lea(rdx, byte[rbp + getOffset(core, core.ram.data()) + rcx]);
+		code.lea(rcx, byte[rbp + getOffset(core, core.ram.data()) + rcx]);
 		code.lea(r8, byte[rbp + getOffset(core, core.gpr.data())]);
 
-		code.xor_(ecx, ecx); //zero out rcx
-
-		//TODO: you idiot, use a for loop
-		Xbyak::Label loop;
-		code.L(loop);
-		code.mov(r9b, byte[r8 + rcx]); // load byte from gpr[counter]
-		code.mov(byte[rdx + rcx], r9b); // write byte to ram[index + counter]
-		code.inc(rcx);
-		code.cmp(rcx, getx(instr) + 1);
-		code.jne(loop);
+		for (auto i = 0; i < getx(instr) + 1; i++) {
+			code.mov(r9b, byte[r8 + i]); // load byte from gpr[counter]
+			code.mov(byte[rcx + i], r9b); // write byte to ram[index + counter]
+		}
 	}
 
 	// same thing above but with pointers switched
 	static void emitLDVxI(Chip8& core, uint16_t instr) { //0xFx65
-		// rcx: first holds core.index, then counter
-		// rdx: pointer to core.gpr.data()  
-		// r8: pointer to core.ram.data() + core.index
+		// rcx: core.index
+		// rdx: pointer to core.ram.data() + core.index
+		// r8:  pointer to core.gpr.data()
 		// r9b: byte data
 		code.movzx(rcx, word[rbp + getOffset(core, &core.index)]); //load index pointer
-		code.lea(rdx, byte[rbp + getOffset(core, core.gpr.data())]);
-		code.lea(r8, byte[rbp + getOffset(core, core.ram.data()) + rcx]);
+		code.lea(rcx, byte[rbp + getOffset(core, core.ram.data()) + rcx]);
+		code.lea(r8, byte[rbp + getOffset(core, core.gpr.data())]);
 
-		code.xor_(ecx, ecx); //zero out ecx
-
-		Xbyak::Label loop;
-		code.L(loop);
-		code.mov(r9b, byte[r8 + rcx]); // load byte from gpr[counter]
-		code.mov(byte[rdx + rcx], r9b); // set byte in ram[index + counter]
-		code.inc(rcx);
-		code.cmp(rcx, getx(instr) + 1);
-		code.jne(loop);
+		for (auto i = 0; i < getx(instr) + 1; i++) {
+			code.mov(r9b, byte[rcx + i]); // load byte from ram[index + counter]
+			code.mov(byte[r8 + i], r9b); // write byte to gpr[counter] 
+		}
 	}
 };

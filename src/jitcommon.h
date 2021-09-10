@@ -6,7 +6,7 @@ using fp = int(*)();
 using interpreterfp = void(*)(Chip8&, uint16_t);
 
 //The entire code emitter. God bless xbyak
-constexpr int cacheSize = 16 * 1024;
+constexpr int cacheSize = 64 * 1024;
 constexpr int cacheLeeway = 1024; // If currentCacheSize + cacheLeeway > cacheSize, reset cache
 uint8_t cache[cacheSize]; // emitted code cache //TODO: figure out rip relative addressing
 class x64Emitter : public Xbyak::CodeGenerator {

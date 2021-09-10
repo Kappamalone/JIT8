@@ -16,7 +16,7 @@ public:
 	//Returns amount of cycles it took to execute
 	//On an interpreter, this is always 1
 	static int executeFunc(Chip8& core) {
-		printf("%04X\n", core.pc);
+		//printf("%04X\n", core.pc);
 
 		auto instr = core.read<uint16_t>(core.pc);
 		core.pc += 2;
@@ -198,27 +198,23 @@ public:
 	}
 
 	static void DXYN(Chip8& core, uint16_t instr) { //0xDxyn
-		auto xcoord = core.gpr[getx(instr)] % 64;
-		auto ycoord = core.gpr[gety(instr)] % 32;
+		auto startX = core.gpr[getx(instr)] & 63;
+		auto startY = core.gpr[gety(instr)] & 31;
 		core.gpr[0xf] = 0;
 
-		for (auto i = 0; i < getn(instr); i++) {
-			const auto bytedata = core.read<uint8_t>(core.index + i);
-			for (auto j = 0; j < 8; j++) {
-				if (xcoord + WIDTH * ycoord >= WIDTH * HEIGHT) { break; }
+		for (auto y = 0; y < getn(instr); y++) {
+			const auto bytedata = core.read<uint8_t>(core.index + y);
+			for (auto x = 0; x < 8; x++) {
+				if (startX + x + WIDTH * (startY + y) >= WIDTH * HEIGHT) { break; }
 
-				auto& pixel = core.framebuffer[xcoord + WIDTH * ycoord];
-				const auto bitdata = (bytedata & (1 << (7 - j))) >> (7 - j);
-				pixel ^= bitdata * 0xffffffff;
-
-				if (bitdata && !pixel) {
+				auto& pixel = core.framebuffer[startX + x + WIDTH * (startY + y)];
+				const auto bitdata = (bytedata >> (7 - x)) & 1;
+				if (bitdata && pixel) {
 					core.gpr[0xf] = 1;
 				}
 
-				++xcoord;
+				pixel ^= bitdata * 0xffffffff;
 			}
-			xcoord -= 8;
-			++ycoord;
 		}
 	}
 

@@ -9,10 +9,9 @@
 #include <SFML/Graphics/Sprite.hpp>
 #include <chip8.h>
 
-//TODO: sound, fix keybindings, framerate counter, LDBVx and DYXN
-
+//TODO: sound, LDBVx and DYXN
 class GUI {
-private:
+public:
 	sf::RenderWindow window;
 	sf::Texture texture;
 	sf::Sprite sprite;
@@ -21,18 +20,19 @@ private:
 	Chip8 core;
 
 	//config
-	bool isFrameLimited; //controls frame limiting
+	bool isFrameLimited = true; //controls frame limiting
 	void toggleFramelimiter() {
-		 isFrameLimited ^= true;
-		 if (isFrameLimited) {
-			 window.setFramerateLimit(60);
-		 } else {
-			 window.setFramerateLimit(0);
-		 }
+		isFrameLimited ^= true;
+		if (isFrameLimited) {
+			window.setFramerateLimit(60);
+		}
+		else {
+			window.setFramerateLimit(0);
+		}
 	}
 
-
 public:
+	int fps = 0;
 	bool runFrame;
 	std::mutex mRunFrame;
 	std::condition_variable cvRunFrame;
@@ -44,8 +44,8 @@ public:
 		emu_thread.detach(); //fly free, emu thread...
 
 		runFrame = false;
-		isFrameLimited = true;
 		window.setFramerateLimit(60);
+		window.setTitle("FPS: " + std::to_string(60));
 
 		//Initialise SFML stuff
 		texture.create(64, 32);
@@ -54,14 +54,6 @@ public:
 	}
 
 	~GUI() = default;
-
-	//There's no real point to the way i handle multithreading in this application,
-	//Since the gui thread barely does anything. However it was pretty cool
-	//learn, so I'll stick with it
-
-	//Instead of having each thread synced like this, its also possible to let
-	//The emu thread just do its thing separately. Dunno how that'd work though overall
-
 
 	void pingEmuthread() {
 		runFrame = true;
@@ -78,36 +70,37 @@ public:
 
 	void run() {
 		while (window.isOpen()) {
-			pingEmuthread();
+			//pingEmuthread();
 
 			handleInput();
 
-			texture.update((uint8_t*)core.framebuffer.data()); //Draw framebuffer to screen
+			//Draw framebuffer to screen
+			texture.update((uint8_t*)core.framebuffer.data());
 			window.clear();
 			window.draw(sprite);
 			window.display();
 
-			waitForEmuThread();
+			//waitForEmuThread();
 		}
 	}
 
 	void handleInput() {
 		static std::unordered_map <sf::Keyboard::Key, int> keyMappings = {
-		   {sf::Keyboard::Num1, 0x0},
-		   {sf::Keyboard::Num2, 0x1},
-		   {sf::Keyboard::Num3, 0x2},
-		   {sf::Keyboard::Num4, 0x3},
+		   {sf::Keyboard::Num1, 0x1},
+		   {sf::Keyboard::Num2, 0x2},
+		   {sf::Keyboard::Num3, 0x3},
+		   {sf::Keyboard::Num4, 0xC},
 		   {sf::Keyboard::Q, 0x4},
 		   {sf::Keyboard::W, 0x5},
 		   {sf::Keyboard::E, 0x6},
-		   {sf::Keyboard::R, 0x7},
-		   {sf::Keyboard::A, 0x8},
-		   {sf::Keyboard::S, 0x9},
-		   {sf::Keyboard::D, 0xA},
-		   {sf::Keyboard::F, 0xB},
-		   {sf::Keyboard::Z, 0xC},
-		   {sf::Keyboard::X, 0xD},
-		   {sf::Keyboard::C, 0xE},
+		   {sf::Keyboard::R, 0xD},
+		   {sf::Keyboard::A, 0x7},
+		   {sf::Keyboard::S, 0x8},
+		   {sf::Keyboard::D, 0x9},
+		   {sf::Keyboard::F, 0xE},
+		   {sf::Keyboard::Z, 0xA},
+		   {sf::Keyboard::X, 0x0},
+		   {sf::Keyboard::C, 0xB},
 		   {sf::Keyboard::V, 0xF},
 		};
 

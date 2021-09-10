@@ -16,7 +16,7 @@ private:
 
 	//Config
 	int speed; //how many cycles executed in a second
-	
+
 	//Memory
 	std::array<uint8_t, 4096> ram;
 	std::array<uint16_t, 16> stack;
@@ -34,7 +34,7 @@ public:
 	friend class Chip8CachedInterpreter;
 	friend class Chip8Dynarec;
 
-
+	
 	alignas(32) std::array<uint32_t, WIDTH* HEIGHT> framebuffer;
 	std::array<bool, 16> keyState; //input
 
