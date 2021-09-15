@@ -25,17 +25,19 @@ private:
 	uint16_t pc = 0; //program counter
 	uint8_t sp = 0; //stack pointer
 	uint16_t index = 0; //index register
-	uint8_t delay = 0; //delay timer
-	uint8_t sound = 0; //sound timer
 	std::array<uint8_t, 16> gpr; //16 registers from V0 - VF
 
 public:
 	friend class Chip8Interpreter;
 	friend class Chip8CachedInterpreter;
 	friend class Chip8Dynarec;
+	friend class Chip8AOT;
 
-	
+	uint8_t delay = 0; //delay timer
+	uint8_t sound = 0; //sound timer
+
 	alignas(32) std::array<uint32_t, WIDTH* HEIGHT> framebuffer;
+	alignas(32) std::array<uint64_t, HEIGHT> display;
 	std::array<bool, 16> keyState; //input
 
 	Chip8(GUI* gui, int speed);

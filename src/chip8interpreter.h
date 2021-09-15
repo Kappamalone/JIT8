@@ -17,7 +17,6 @@ public:
 	//On an interpreter, this is always 1
 	static int executeFunc(Chip8& core) {
 		//printf("%04X\n", core.pc);
-
 		auto instr = core.read<uint16_t>(core.pc);
 		core.pc += 2;
 
@@ -96,7 +95,8 @@ public:
 	};
 
 	static void CLS(Chip8& core, uint16_t instr) { //0x00E0
-		core.framebuffer.fill(0);
+		//core.framebuffer.fill(0);
+		core.display.fill(0);
 	}
 
 	static void RET(Chip8& core, uint16_t instr) { //0x00EE (post-increment)
@@ -198,23 +198,37 @@ public:
 	}
 
 	static void DXYN(Chip8& core, uint16_t instr) { //0xDxyn
-		auto startX = core.gpr[getx(instr)] & 63;
-		auto startY = core.gpr[gety(instr)] & 31;
+		// auto startX = core.gpr[getx(instr)] & 63;
+		// auto startY = core.gpr[gety(instr)] & 31;
+		// core.gpr[0xf] = 0;
+
+		// for (auto y = 0; y < getn(instr); y++) {
+		// 	const auto bytedata = core.read<uint8_t>(core.index + y);
+		// 	for (auto x = 0; x < 8; x++) {
+		// 		if (startX + x + WIDTH * (startY + y) >= WIDTH * HEIGHT) { break; }
+
+		// 		auto& pixel = core.framebuffer[startX + x + WIDTH * (startY + y)];
+		// 		const auto bitdata = (bytedata >> (7 - x)) & 1;
+		// 		if (bitdata && pixel) {
+		// 			core.gpr[0xf] = 1;
+		// 		}
+
+		// 		pixel ^= bitdata * 0xffffffff;
+		// 	}
+		// }
+
+		const auto startX = core.gpr[getx(instr)] & 63;
+		const auto startY = core.gpr[gety(instr)] & 31;
 		core.gpr[0xf] = 0;
 
 		for (auto y = 0; y < getn(instr); y++) {
-			const auto bytedata = core.read<uint8_t>(core.index + y);
-			for (auto x = 0; x < 8; x++) {
-				if (startX + x + WIDTH * (startY + y) >= WIDTH * HEIGHT) { break; }
+			if (startY + y == HEIGHT) return;
 
-				auto& pixel = core.framebuffer[startX + x + WIDTH * (startY + y)];
-				const auto bitdata = (bytedata >> (7 - x)) & 1;
-				if (bitdata && pixel) {
-					core.gpr[0xf] = 1;
-				}
-
-				pixel ^= bitdata * 0xffffffff;
-			}
+			uint64_t spriteLine = (uint64_t)core.ram[core.index + y];
+			spriteLine = (spriteLine << 56) >> startX;
+			uint64_t& displayLine = core.display[startY + y];
+			core.gpr[0xf] |= (displayLine & spriteLine) != 0;
+			displayLine ^= spriteLine;
 		}
 	}
 

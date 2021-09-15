@@ -28,6 +28,7 @@ add_executable(${PROJECT_NAME}
   src/chip8interpreter.h
   src/chip8cachedinterpreter.h
   src/chip8dynarec.h
+  src/chip8aot.h
 )
 
  target_link_libraries (${PROJECT_NAME} PRIVATE sfml-system sfml-network sfml-graphics sfml-window)

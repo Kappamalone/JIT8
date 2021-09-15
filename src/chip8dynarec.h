@@ -66,7 +66,7 @@ public:
 				case 0x0EE: emitRET(core, instr); jumpOccured = true; break;
 				default:
 					printf("Unimplemented instr - %04X\n", instr);
-					//exit(1);
+					exit(1);
 				}
 
 				break;
@@ -106,7 +106,7 @@ public:
 				case 0xA1: emitSKNPVx(core, instr, cycles * 2); jumpOccured = true; break;
 				default:
 					printf("Unimplemented instr - %04X\n", instr);
-					//exit(1);
+					exit(1);
 				}
 
 				break;
@@ -130,7 +130,7 @@ public:
 				case 0x65: emitLDVxI(core, instr); break;
 				default:
 					printf("Unimplemented instr - %04X\n", instr);
-					//exit(1);
+					exit(1);
 				}
 
 				break;
@@ -139,6 +139,7 @@ public:
 				exit(1);
 			}
 
+			//This won't work on unaligned PC's
 			if ((dynarecPC & (pageSize - 1)) == 0 || jumpOccured) { //If we exceed the page boundary, dip
 				break;
 			}
@@ -206,13 +207,10 @@ public:
 	// Recompilation
 
 	static void emitCLS(Chip8& core, uint16_t instr) { //0x00E0
-		// framebuffer = 64 * 32 * 4 = 8192 bytes
-		// ymmword = 256 bits = 32 bytes
-		// so 8192/32 = 256 ymmword stores
 		code.xorps(xmm0, xmm0);
-		for (auto i = 0; i < 256; i++) {
+		for (auto i = 0; i < 16; i++) {
 			//code.vmovaps(yword[rbp + getOffset(core, core.framebuffer.data()) + i * 32], ymm0);
-			code.vmovdqa(yword[rbp + getOffset(core, core.framebuffer.data()) + i * 32], ymm0);
+			code.vmovdqa(yword[rbp + getOffset(core, core.display.data()) + i * 32], ymm0);
 		}
 		code.vzeroupper(); //TODO: learn about AVX context
 	}
@@ -395,8 +393,8 @@ public:
 	}
 
 	static void emitLDFVx(Chip8& core, uint16_t instr) { //0xFx29
-		code.mov(cx, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
-		code.lea(cx, ptr[cx * 4 + cx]); // multiply cx by 5
+		code.movzx(ecx, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
+		code.lea(ecx, ptr[ecx * 4 + ecx]); // multiply cx by 5
 		code.mov(word[rbp + getOffset(core, &core.index)], cx);
 	}
 
@@ -434,7 +432,23 @@ public:
 		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index])], cl / 100);
 		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index + 1])], (cl / 10) % 100);
 		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index + 2])], cl % 10);
-		emitFallback(Chip8Interpreter::LDBVx, core, instr);
+		//emitFallback(Chip8Interpreter::LDBVx, core, instr);
+		// eax: gpr / 100;
+		// ecx: gpr / 10 % 10
+		// edx: gpr % 10
+		// r8: core.index
+		// r9d: divisor
+		code.movzx(r8, word[rbp + getOffset(core, &core.index)]);
+		code.mov(r9d, 10);
+
+		code.movzx(eax, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
+		code.xor_(edx, edx); //clear high dword
+		code.div(r9d); // gpr / 10 in eax, gpr % 10 in edx
+		code.mov(byte[rbp + getOffset(core, core.ram.data()) + r8 + 2], dl); // write gpr % 10 into ram[index + 2]
+		code.xor_(edx, edx); //clear high dword
+		code.div(r9d); // gpr / 100 in eax, (gpr / 10) % 10 in edx
+		code.mov(byte[rbp + getOffset(core, core.ram.data()) + r8], al); // write gpr % 10 into ram[index + 2]
+		code.mov(byte[rbp + getOffset(core, core.ram.data()) + r8 + 1], dl); // write gpr % 10 into ram[index + 2]
 	}
 
 	static void emitLDIVx(Chip8& core, uint16_t instr) { //0xFx55

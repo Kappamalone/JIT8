@@ -9,12 +9,13 @@
 #include <SFML/Graphics/Sprite.hpp>
 #include <chip8.h>
 
-//TODO: sound, LDBVx and DYXN
+//TODO: sound, LDBVx and DYXN and cleanup between files
 class GUI {
 public:
 	sf::RenderWindow window;
 	sf::Texture texture;
 	sf::Sprite sprite;
+	std::array<uint32_t, WIDTH * HEIGHT> framebuffer;
 
 	std::thread emu_thread;
 	Chip8 core;
@@ -23,12 +24,12 @@ public:
 	bool isFrameLimited = true; //controls frame limiting
 	void toggleFramelimiter() {
 		isFrameLimited ^= true;
-		if (isFrameLimited) {
-			window.setFramerateLimit(60);
-		}
-		else {
-			window.setFramerateLimit(0);
-		}
+		// if (isFrameLimited) {
+		// 	window.setFramerateLimit(60);
+		// }
+		// else {
+		// 	window.setFramerateLimit(0);
+		// }
 	}
 
 public:
@@ -41,16 +42,18 @@ public:
 		emu_thread = std::thread([this]() {
 			core.runFrame();
 			});
-		emu_thread.detach(); //fly free, emu thread...
+		//TODO: what does .detach actually do?
+		emu_thread.detach(); //fly free, emu thread... 
 
 		runFrame = false;
 		window.setFramerateLimit(60);
-		window.setTitle("FPS: " + std::to_string(60));
+		window.setTitle("JIT8 | FPS: " + std::to_string(60));
 
 		//Initialise SFML stuff
 		texture.create(64, 32);
 		sprite.setTexture(texture);
 		sprite.setScale(sf::Vector2f(10, 10));
+		framebuffer.fill(0);
 	}
 
 	~GUI() = default;
@@ -74,13 +77,32 @@ public:
 
 			handleInput();
 
+			// Handle timers
+			if (core.delay) --core.delay;
+			if (core.sound) --core.sound;
+
 			//Draw framebuffer to screen
-			texture.update((uint8_t*)core.framebuffer.data());
+			drawToFramebuffer();
+			texture.update((uint8_t*)framebuffer.data());
 			window.clear();
 			window.draw(sprite);
 			window.display();
 
 			//waitForEmuThread();
+		}
+	}
+
+	void drawToFramebuffer() {
+		for (auto i = 0; i < HEIGHT; i++) {
+			const auto line = core.display[i];
+			for (auto j = 0; j < WIDTH; j++) {
+				const auto bit = (line >> (63 - j)) & 1;
+				if (bit) {
+					framebuffer[j + i * WIDTH] = 0xffffffff;
+				} else {
+					framebuffer[j + i * WIDTH] = 0;
+				}
+			}
 		}
 	}
 
