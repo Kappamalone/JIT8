@@ -36,7 +36,6 @@ public:
 	uint8_t delay = 0; //delay timer
 	uint8_t sound = 0; //sound timer
 
-	alignas(32) std::array<uint32_t, WIDTH* HEIGHT> framebuffer;
 	alignas(32) std::array<uint64_t, HEIGHT> display;
 	std::array<bool, 16> keyState; //input
 

@@ -1,4 +1,5 @@
 #pragma once
+#include <cassert>
 #include <stdio.h>
 #include <chip8.h>
 
@@ -198,25 +199,6 @@ public:
 	}
 
 	static void DXYN(Chip8& core, uint16_t instr) { //0xDxyn
-		// auto startX = core.gpr[getx(instr)] & 63;
-		// auto startY = core.gpr[gety(instr)] & 31;
-		// core.gpr[0xf] = 0;
-
-		// for (auto y = 0; y < getn(instr); y++) {
-		// 	const auto bytedata = core.read<uint8_t>(core.index + y);
-		// 	for (auto x = 0; x < 8; x++) {
-		// 		if (startX + x + WIDTH * (startY + y) >= WIDTH * HEIGHT) { break; }
-
-		// 		auto& pixel = core.framebuffer[startX + x + WIDTH * (startY + y)];
-		// 		const auto bitdata = (bytedata >> (7 - x)) & 1;
-		// 		if (bitdata && pixel) {
-		// 			core.gpr[0xf] = 1;
-		// 		}
-
-		// 		pixel ^= bitdata * 0xffffffff;
-		// 	}
-		// }
-
 		const auto startX = core.gpr[getx(instr)] & 63;
 		const auto startY = core.gpr[gety(instr)] & 31;
 		core.gpr[0xf] = 0;

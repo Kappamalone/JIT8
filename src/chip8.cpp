@@ -21,13 +21,13 @@ Chip8::Chip8(GUI* gui, int speed) {
 	keyState.fill(0);
 	display.fill(0);
 
-	//loadRom("../../roms/testroms/ibm logo.ch8");
+	//loadRom("../../roms/testroms/test_opcode.ch8");
 	loadRom("../../roms/invaders");
 	loadFonts();
 };
 
 Chip8::~Chip8() {
-	//dumpCodeCache();
+	dumpCodeCache();
 
 	//maaaybe i should've made the code emitters and page tables global...
 	for (auto& i : Chip8CachedInterpreter::blockPageTable) {
@@ -106,6 +106,7 @@ void Chip8::runFrame() {
 	sf::Clock deltaClock;
 	sf::Time elapsedTime;
 	sf::Time frameTime;
+	int fps = 0;
 
 	//TODO: move this to ctor
 	static auto cpuExecuteFunc = Chip8AOT::executeFunc;
@@ -114,7 +115,7 @@ void Chip8::runFrame() {
 		printf("Finished AOT recompiling all blocks!\n");
 	}
 
-	while (true) {
+	while (gui->window.isOpen()) {
 		//waitForPing();
 
 		//execute one frame's worth of instuctions
@@ -127,8 +128,8 @@ void Chip8::runFrame() {
 		frameTime = deltaClock.restart();
 		elapsedTime += frameTime;
 		if (elapsedTime.asSeconds() >= 1) [[unlikely]] {
-			gui->window.setTitle("JIT8 | FPS: " + std::to_string(gui->fps));
-			gui->fps = 0;
+			gui->window.setTitle("JIT8 | FPS: " + std::to_string(fps));
+			fps = 0;
 			elapsedTime = sf::Time::Zero;
 		}
 
@@ -142,7 +143,7 @@ void Chip8::runFrame() {
 			elapsedTime += deltaClock.restart(); // restart deltaclock so next frame isn't affected
 		}
 
-		++gui->fps;
+		++fps;
 
 		//pingGuiThread();
 	}

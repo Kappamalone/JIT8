@@ -104,8 +104,8 @@ public:
 			case 0xA: emitLDI(core, instr);                                     break;
 			case 0xB: emitJPV0(core, instr); jumpOccured = true;                break;
 			case 0xC: emitRNDVxByte(core, instr);                               break;
-			case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);        break;
-			//case 0xD: emitDXYN(core, instr); break;
+			//case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);        break;
+			case 0xD: emitDXYN(core, instr); break;
 			case 0xE:
 				switch (instr & 0xff) {
 				case 0x9E: emitSKPVx(core, instr, cycles * 2);  jumpOccured = true; break;
@@ -215,10 +215,12 @@ public:
 	// Recompilation
 
 	static void emitCLS(Chip8& core, uint16_t instr) { //0x00E0
+		//display = 8 * 32 bytes
+		//ymmword = 32 bytes
+		//therefore 8 * 32 / 32 = 8 stores required
 		code.xorps(xmm0, xmm0);
-		for (auto i = 0; i < 16; i++) {
-			//code.vmovaps(yword[rbp + getOffset(core, core.framebuffer.data()) + i * 32], ymm0);
-			code.vmovdqa(yword[rbp + getOffset(core, core.framebuffer.data()) + i * 32], ymm0);
+		for (auto i = 0; i < 8; i++) {
+			code.vmovdqa(yword[rbp + getOffset(core, core.display.data()) + i * 32], ymm0);
 		}
 		code.vzeroupper(); //TODO: learn about AVX context
 	}
@@ -359,7 +361,68 @@ public:
 
 	// Final boss
 	static void emitDXYN(Chip8& core, uint16_t instr) { //Dxyn
+		// rax: temp
+		// rcx: startX
+		// rdx: startY
+		// r8 : pointer to core.ram[core.index]
+		// r9 : pointer to core.display[startY]
 
+		// ymm0: spritelines
+		// ymm1: displaylines
+
+		auto lines = getn(instr);
+		const auto isOdd = lines & 1;
+		auto index = 0;
+
+		code.movzx(ecx, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
+		code.movzx(rdx, byte[rbp + getOffset(core, &core.gpr[gety(instr)])]);
+		code.and_(ecx, 63);
+		code.and_(rdx, 31);
+		code.mov(byte[rbp + getOffset(core, &core.gpr[0xf])], 0);
+
+		code.movzx(rax, word[rbp + getOffset(core, &core.index)]);
+		code.lea(r8, ptr[rbp + getOffset(core, core.ram.data()) + rax]);
+		code.lea(r9, ptr[rbp + getOffset(core, core.display.data()) + rdx * sizeof(uint64_t)]);
+
+		// while (lines >= 4) {
+		// 	code.vpmovzxbq(ymm0, dword[r8 + index]);
+		// 	//load ymm2 with 56
+		// 	code.mov(eax, 56);
+		// 	code.movd(xmm2, eax);
+		// 	code.vpsllvq(ymm0, ymm0, ymm2);
+		// 	//load ymm2 with startX
+		// 	code.movd(xmm2, ecx);
+		// 	code.vpsrlvq(ymm0, ymm0, ymm2);
+		// 	code.vmovdqu(ymm1, yword[r9 + index * sizeof(uint64_t)]);
+		// 	code.vpxor(ymm1, ymm1, ymm0);
+		// 	code.vmovdqu(yword[r9 + index * sizeof(uint64_t)], ymm1);
+		// 	index += 4;
+		// 	lines -= 4;
+		// }
+
+		while (lines >= 2) {
+			code.vpmovzxbq(xmm0, word[r8 + index]);
+			//load xmm2 with 56
+			code.mov(eax, 56);
+			code.movd(xmm2, eax);
+			code.vpsllvq(xmm0, xmm0, xmm2);
+			//load xmm2 with startX
+			code.movd(xmm2, ecx);
+			code.vpsrlvq(xmm0, xmm0, xmm2);
+			code.vpxor(xmm0, xmm0, xword[r9 + index * sizeof(uint64_t)]);
+			code.vmovdqu(xword[r9 + index * sizeof(uint64_t)], xmm0);
+			index += 2;
+			lines -= 2;
+		}
+
+		if (isOdd) { //compensate for odd line
+			code.movzx(rdx, byte[r8 + index]);
+			code.shl(rdx, 56);
+			code.shr(rdx, cl);
+			code.xor_(qword[r9 + index * sizeof(uint64_t)], rdx);
+		}
+
+		code.vzeroupper();
 	}
 
 	static void emitSKPVx(Chip8& core, uint16_t instr, uint16_t PCIncrement) { ////0xEx9E

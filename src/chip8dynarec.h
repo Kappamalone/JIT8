@@ -98,8 +98,8 @@ public:
 			case 0xA: emitLDI(core, instr);                                     break;
 			case 0xB: emitJPV0(core, instr); jumpOccured = true;                break;
 			case 0xC: emitRNDVxByte(core, instr);                               break;
-			case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);        break;
-				//case 0xD: emitDXYN(core, instr); break;
+			//case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);        break;
+			case 0xD: emitDXYN(core, instr); break;
 			case 0xE:
 				switch (instr & 0xff) {
 				case 0x9E: emitSKPVx(core, instr, cycles * 2);  jumpOccured = true; break;
@@ -207,9 +207,11 @@ public:
 	// Recompilation
 
 	static void emitCLS(Chip8& core, uint16_t instr) { //0x00E0
+		//display = 8 * 32 bytes
+		//ymmword = 32 bytes
+		//therefore 8 * 32 / 32 = 8 stores required
 		code.xorps(xmm0, xmm0);
-		for (auto i = 0; i < 16; i++) {
-			//code.vmovaps(yword[rbp + getOffset(core, core.framebuffer.data()) + i * 32], ymm0);
+		for (auto i = 0; i < 8; i++) {
 			code.vmovdqa(yword[rbp + getOffset(core, core.display.data()) + i * 32], ymm0);
 		}
 		code.vzeroupper(); //TODO: learn about AVX context
@@ -351,7 +353,34 @@ public:
 
 	// Final boss
 	static void emitDXYN(Chip8& core, uint16_t instr) { //Dxyn
+		// rax: collision detection
+		// rcx: startX
+		// rdx: startY
+		// r8 : pointer to core.ram[core.index]
+		// r9 : pointer to core.display[startY]
+		code.push(rsi);
 
+		code.mov(cl, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
+		code.movzx(rdx, byte[rbp + getOffset(core, &core.gpr[gety(instr)])]);
+		code.and_(cl, 63);
+		code.and_(rdx, 31);
+		code.mov(byte[rbp + getOffset(core, &core.gpr[0xf])], 0);
+
+		code.movzx(rax, word[rbp + getOffset(core, &core.index)]);
+		code.lea(r8, ptr[rbp + getOffset(core, core.ram.data()) + rax]);
+		code.lea(r9, ptr[rbp + getOffset(core, core.display.data()) + rdx * sizeof(uint64_t)]);
+
+		for (auto y = 0; y < getn(instr); y++) {
+			code.movzx(rsi, byte[r8 + y]);
+			code.shl(rsi, 56);
+			code.shr(rsi, cl);
+			code.test(qword[r9 + y * sizeof(uint64_t)], rsi);
+			code.setnz(al);
+			code.or_(byte[rbp + getOffset(core, &core.gpr[0xf])], al);
+			code.xor_(qword[r9 + y * sizeof(uint64_t)], rsi);
+		}
+
+		code.pop(rsi);
 	}
 
 	static void emitSKPVx(Chip8& core, uint16_t instr, uint16_t PCIncrement) { ////0xEx9E

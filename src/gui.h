@@ -24,16 +24,9 @@ public:
 	bool isFrameLimited = true; //controls frame limiting
 	void toggleFramelimiter() {
 		isFrameLimited ^= true;
-		// if (isFrameLimited) {
-		// 	window.setFramerateLimit(60);
-		// }
-		// else {
-		// 	window.setFramerateLimit(0);
-		// }
 	}
 
 public:
-	int fps = 0;
 	bool runFrame;
 	std::mutex mRunFrame;
 	std::condition_variable cvRunFrame;
@@ -43,7 +36,7 @@ public:
 			core.runFrame();
 			});
 		//TODO: what does .detach actually do?
-		emu_thread.detach(); //fly free, emu thread... 
+		//emu_thread.detach(); //fly free, emu thread... 
 
 		runFrame = false;
 		window.setFramerateLimit(60);
@@ -90,6 +83,8 @@ public:
 
 			//waitForEmuThread();
 		}
+
+		emu_thread.join();
 	}
 
 	void drawToFramebuffer() {
