@@ -100,6 +100,7 @@ public:
 			case 0xC: emitRNDVxByte(core, instr);                               break;
 			//case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);        break;
 			case 0xD: emitDXYN(core, instr); break;
+			//case 0xD: emitOldDXYN(core, instr); break;
 			case 0xE:
 				switch (instr & 0xff) {
 				case 0x9E: emitSKPVx(core, instr, cycles * 2);  jumpOccured = true; break;
@@ -347,12 +348,86 @@ public:
 		code.mov(word[rbp + getOffset(core, &core.pc)], cx);
 	}
 
+	//TODO: fix and make random byte generated at runtime, not compile time
 	static void emitRNDVxByte(Chip8& core, uint16_t instr) { //Cxkk
 		code.mov(byte[rbp + getOffset(core, &core.gpr[getx(instr)])], (rand() % 256) & getkk(instr));
 	}
 
 	// Final boss
 	static void emitDXYN(Chip8& core, uint16_t instr) { //Dxyn
+		// doesn't check if we're drawing past line 31, but eh
+		// rax: temp
+		// rcx: startX
+		// rdx: startY
+		// r8 : pointer to core.ram[core.index]
+		// r9 : pointer to core.display[startY]
+
+		// ymm0: spritelines
+		// ymm1: displaylines
+
+		auto lines = getn(instr); // how many lines we're drawing
+		auto index = 0;           // to index into core.ram and core.display
+
+		code.movzx(ecx, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]); // load startX
+		code.movzx(edx, byte[rbp + getOffset(core, &core.gpr[gety(instr)])]); // load startY
+		code.and_(ecx, 63); // startX &= 63
+		code.and_(edx, 31); // startY &= 31
+		code.mov(byte[rbp + getOffset(core, &core.gpr[0xf])], 0);  // core.gpr[0xf] = 0
+
+		code.movzx(eax, word[rbp + getOffset(core, &core.index)]); // load core.index
+		code.lea(r8, ptr[rbp + getOffset(core, core.ram.data()) + rax]);
+		code.lea(r9, ptr[rbp + getOffset(core, core.display.data()) + rdx * sizeof(uint64_t)]);
+
+		while (lines >= 4) {
+			code.vpmovzxbq(ymm0, dword[r8 + index]); // load and zero extend 4 spritelines(bytes) into ymm0
+			code.vpsllq(ymm0, ymm0, 56);             // shift packed 64 bit integers by 56
+			code.movd(xmm2, ecx);
+			code.vpsrlq(ymm0, ymm0, ymm2);           // shift packed 64 bit integers by startX
+
+			code.vmovdqu(ymm1, yword[r9 + index * sizeof(uint64_t)]);  // load ymm1 with 4 displaylines
+			code.vptest(ymm0, ymm1);                                   // test for collisions
+			code.setnz(al);
+			code.or_(byte[rbp + getOffset(core, &core.gpr[0xf])], al); // set on collision
+
+			code.vpxor(ymm1, ymm1, ymm0); // 4 displaylines ^= 4 spritelines
+			code.vmovdqu(yword[r9 + index * sizeof(uint64_t)], ymm1); // write back 4 displaylines
+			index += 4; // increment index by 4 as 4 display lines have been drawn to screen
+			lines -= 4;
+		}
+
+		while (lines >= 2) {
+			code.vpmovzxbq(xmm0, word[r8 + index]); // load and zero extend 2 spritelines(bytes) into xmm0
+			code.vpsllq(xmm0, xmm0, 56);            // shift packed 64 bit integers by 56
+			code.movd(xmm2, ecx);                   
+			code.vpsrlq(xmm0, xmm0, xmm2);		    // shift packed 64 bit integers by startX
+
+			code.vmovdqu(xmm1, xword[r9 + index * sizeof(uint64_t)]);  // load xmm1 with 2 displaylines
+			code.vptest(xmm0, xmm1);                                   // test for collisions
+			code.setnz(al);                          
+			code.or_(byte[rbp + getOffset(core, &core.gpr[0xf])], al); // set on collision
+
+			code.vpxor(xmm1, xmm1, xmm0); // 2 displaylines ^= 2 spritelines
+			code.vmovdqu(xword[r9 + index * sizeof(uint64_t)], xmm1); // write back 2 displaylines
+			index += 2; // increment index by 2 as 2 display lines have been drawn to screen
+			lines -= 2;
+		}
+
+		code.vzeroupper();
+
+		if (lines > 0) { //compensate for odd line
+			code.movzx(edx, byte[r8 + index]);
+			code.shl(rdx, 56);
+			code.shr(rdx, cl);
+
+			code.test(qword[r9 + index * sizeof(uint64_t)], rdx);
+			code.setnz(al);
+			code.or_(byte[rbp + getOffset(core, &core.gpr[0xf])], al);
+
+			code.xor_(qword[r9 + index * sizeof(uint64_t)], rdx);
+		}
+	}
+
+	static void emitOldDXYN(Chip8& core, uint16_t instr) { //Dxyn
 		// rax: collision detection
 		// rcx: startX
 		// rdx: startY

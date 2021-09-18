@@ -9,7 +9,7 @@
 #include <SFML/Graphics/Sprite.hpp>
 #include <chip8.h>
 
-//TODO: sound, LDBVx and DYXN and cleanup between files
+//TODO: sound, debug only stuff and cleanup
 class GUI {
 public:
 	sf::RenderWindow window;

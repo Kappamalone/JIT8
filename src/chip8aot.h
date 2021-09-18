@@ -361,6 +361,7 @@ public:
 
 	// Final boss
 	static void emitDXYN(Chip8& core, uint16_t instr) { //Dxyn
+		// doesn't check if we're drawing past 31 lines, but eh
 		// rax: temp
 		// rcx: startX
 		// rdx: startY
@@ -371,58 +372,67 @@ public:
 		// ymm1: displaylines
 
 		auto lines = getn(instr);
-		const auto isOdd = lines & 1;
 		auto index = 0;
 
 		code.movzx(ecx, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
-		code.movzx(rdx, byte[rbp + getOffset(core, &core.gpr[gety(instr)])]);
+		code.movzx(edx, byte[rbp + getOffset(core, &core.gpr[gety(instr)])]);
 		code.and_(ecx, 63);
-		code.and_(rdx, 31);
+		code.and_(edx, 31);
 		code.mov(byte[rbp + getOffset(core, &core.gpr[0xf])], 0);
 
-		code.movzx(rax, word[rbp + getOffset(core, &core.index)]);
+		code.movzx(eax, word[rbp + getOffset(core, &core.index)]);
 		code.lea(r8, ptr[rbp + getOffset(core, core.ram.data()) + rax]);
 		code.lea(r9, ptr[rbp + getOffset(core, core.display.data()) + rdx * sizeof(uint64_t)]);
 
-		// while (lines >= 4) {
-		// 	code.vpmovzxbq(ymm0, dword[r8 + index]);
-		// 	//load ymm2 with 56
-		// 	code.mov(eax, 56);
-		// 	code.movd(xmm2, eax);
-		// 	code.vpsllvq(ymm0, ymm0, ymm2);
-		// 	//load ymm2 with startX
-		// 	code.movd(xmm2, ecx);
-		// 	code.vpsrlvq(ymm0, ymm0, ymm2);
-		// 	code.vmovdqu(ymm1, yword[r9 + index * sizeof(uint64_t)]);
-		// 	code.vpxor(ymm1, ymm1, ymm0);
-		// 	code.vmovdqu(yword[r9 + index * sizeof(uint64_t)], ymm1);
-		// 	index += 4;
-		// 	lines -= 4;
-		// }
-
-		while (lines >= 2) {
-			code.vpmovzxbq(xmm0, word[r8 + index]);
-			//load xmm2 with 56
-			code.mov(eax, 56);
-			code.movd(xmm2, eax);
-			code.vpsllvq(xmm0, xmm0, xmm2);
-			//load xmm2 with startX
+		while (lines >= 4) {
+			code.vpmovzxbq(ymm0, dword[r8 + index]);
+			code.vpsllq(ymm0, ymm0, 56);
 			code.movd(xmm2, ecx);
-			code.vpsrlvq(xmm0, xmm0, xmm2);
-			code.vpxor(xmm0, xmm0, xword[r9 + index * sizeof(uint64_t)]);
-			code.vmovdqu(xword[r9 + index * sizeof(uint64_t)], xmm0);
-			index += 2;
-			lines -= 2;
+			code.vpsrlq(ymm0, ymm0, ymm2);
+
+			code.vmovdqu(ymm1, yword[r9 + index * sizeof(uint64_t)]);
+			code.vptest(ymm0, ymm1);
+			code.setnz(al);
+			code.or_(byte[rbp + getOffset(core, &core.gpr[0xf])], al);
+
+			code.vpxor(ymm1, ymm1, ymm0);
+			code.vmovdqu(yword[r9 + index * sizeof(uint64_t)], ymm1);
+			index += 4;
+			lines -= 4;
 		}
 
-		if (isOdd) { //compensate for odd line
-			code.movzx(rdx, byte[r8 + index]);
-			code.shl(rdx, 56);
-			code.shr(rdx, cl);
-			code.xor_(qword[r9 + index * sizeof(uint64_t)], rdx);
+		while (lines >= 2) {
+			code.vpmovzxbq(xmm0, word[r8 + index]); // load and zero extend 2 bytes into xmm0
+			code.vpsllq(xmm0, xmm0, 56);            // shift packed 64 bit integers by startX
+			code.movd(xmm2, ecx);                   
+			code.vpsrlq(xmm0, xmm0, xmm2);		    // load xmm2 with startX
+
+			code.vmovdqu(xmm1, xword[r9 + index * sizeof(uint64_t)]);
+			code.vptest(xmm0, xmm1);
+			code.setnz(al);
+			code.or_(byte[rbp + getOffset(core, &core.gpr[0xf])], al);
+
+			// packed xor 2 spritelines with 2 displaylines
+			code.vpxor(xmm1, xmm1, xmm0);
+			// store 2 display lines back in memory
+			code.vmovdqu(xword[r9 + index * sizeof(uint64_t)], xmm1);
+			index += 2; // increment index by 2 as 2 display lines have been drawn to screen
+			lines -= 2; // decrement remaining lines to draw
 		}
 
 		code.vzeroupper();
+
+		if (lines > 0) { //compensate for odd line
+			code.movzx(edx, byte[r8 + index]);
+			code.shl(rdx, 56);
+			code.shr(rdx, cl);
+
+			code.test(qword[r9 + index * sizeof(uint64_t)], rdx);
+			code.setnz(al);
+			code.or_(byte[rbp + getOffset(core, &core.gpr[0xf])], al);
+
+			code.xor_(qword[r9 + index * sizeof(uint64_t)], rdx);
+		}
 	}
 
 	static void emitSKPVx(Chip8& core, uint16_t instr, uint16_t PCIncrement) { ////0xEx9E
