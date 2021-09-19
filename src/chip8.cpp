@@ -51,6 +51,7 @@ void Chip8::waitForPing() {
 	//printf("Start Frame!\n");
 }
 
+
 void Chip8::pingGuiThread() {
 	gui->runFrame = false;
 	gui->cvRunFrame.notify_one();
@@ -109,7 +110,7 @@ void Chip8::runFrame() {
 	int fps = 0;
 
 	//TODO: move this to ctor
-	static auto cpuExecuteFunc = Chip8AOT::executeFunc;
+	static auto cpuExecuteFunc = Chip8Dynarec::executeFunc;
 	if (cpuExecuteFunc == Chip8AOT::executeFunc) {
 		Chip8AOT::recompileAllBlocks(*this);
 		printf("Finished AOT recompiling all blocks!\n");
@@ -137,8 +138,6 @@ void Chip8::runFrame() {
 		//Literally costs around 1-1.5 million fps to have this :(
 		//Comment out for max speed
 		if (gui->isFrameLimited) {
-			//printf("Frame time: %dms\n", frameTime.asMilliseconds());
-			//printf("Sleep duration: %dms\n", (sf::milliseconds(17) - frameTime).asMilliseconds());
 			sf::sleep(sf::milliseconds(17) - frameTime);
 			elapsedTime += deltaClock.restart(); // restart deltaclock so next frame isn't affected
 		}

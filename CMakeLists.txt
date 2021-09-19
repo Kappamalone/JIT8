@@ -11,7 +11,7 @@ IF (WIN32)
 ENDIF()
 
 # Find SFML shared libraries
-find_package(SFML COMPONENTS system window graphics CONFIG REQUIRED)
+find_package(SFML COMPONENTS system window graphics audio CONFIG REQUIRED)
 
 add_subdirectory(externals)
 
@@ -31,4 +31,4 @@ add_executable(${PROJECT_NAME}
   src/chip8aot.h
 )
 
- target_link_libraries (${PROJECT_NAME} PRIVATE sfml-system sfml-network sfml-graphics sfml-window)
+ target_link_libraries (${PROJECT_NAME} PRIVATE sfml-system sfml-graphics sfml-window sfml-audio)

@@ -1,4 +1,5 @@
 #pragma once
+#include <math.h>
 #include <unordered_map>
 #include <thread>
 #include <mutex>
@@ -7,18 +8,32 @@
 #include <SFML/Graphics/RenderWindow.hpp>
 #include <SFML/Graphics/Texture.hpp>
 #include <SFML/Graphics/Sprite.hpp>
+#include <SFML/Audio/Sound.hpp>
+#include <SFML/Audio/SoundBuffer.hpp>
 #include <chip8.h>
 
-//TODO: sound, debug only stuff and cleanup
+static constexpr int SAMPLES = 44100;
+static constexpr int SAMPLERATE = 44100;
+
+//TODO: sound, debug only stuff, cl arguments and cleanup
 class GUI {
-public:
-	sf::RenderWindow window;
+private:
+	// rendering
 	sf::Texture texture;
 	sf::Sprite sprite;
 	std::array<uint32_t, WIDTH * HEIGHT> framebuffer;
 
+	// audio
+	sf::Sound sound;
+	sf::SoundBuffer soundBuffer;
+	std::array<int16_t, SAMPLES> rawBuffer;
+	uint32_t amplitude;
+
+	// chip8 and threading
 	std::thread emu_thread;
 	Chip8 core;
+public:
+	sf::RenderWindow window;
 
 	//config
 	bool isFrameLimited = true; //controls frame limiting
@@ -26,7 +41,7 @@ public:
 		isFrameLimited ^= true;
 	}
 
-public:
+	// thread syncing stuff isn't used, but might be useful for future projects
 	bool runFrame;
 	std::mutex mRunFrame;
 	std::condition_variable cvRunFrame;
@@ -46,7 +61,9 @@ public:
 		texture.create(64, 32);
 		sprite.setTexture(texture);
 		sprite.setScale(sf::Vector2f(10, 10));
+		initAudio();
 		framebuffer.fill(0);
+		rawBuffer.fill(0);
 	}
 
 	~GUI() = default;
@@ -72,7 +89,13 @@ public:
 
 			// Handle timers
 			if (core.delay) --core.delay;
-			if (core.sound) --core.sound;
+			if (core.sound) {
+				sound.play();
+				--core.sound;
+				if (!core.sound) {
+					sound.pause();
+				}
+			}
 
 			//Draw framebuffer to screen
 			drawToFramebuffer();
@@ -139,6 +162,40 @@ public:
 				core.keyState[keyMappings[event.key.code]] = false;
 				break;
 			}
+		}
+	}
+
+	// fills audio buffer with sin wave
+	void initAudio() {
+		//generateSquareWaveSamples();
+		generateSineWaveSamples();
+		soundBuffer.loadFromSamples((sf::Int16*)rawBuffer.data(), SAMPLES, 1, SAMPLERATE);
+		sound.setBuffer(soundBuffer);
+		sound.setLoop(true);
+	}
+	
+	// fills sample buffer with square wave
+	void generateSquareWaveSamples() {
+		constexpr uint32_t amplitude = 30000;              // how loud/quiet the sound is
+		constexpr double twoPI = 6.28318;
+		constexpr double frequency = 440;                  // the pitch of the sound
+		// As I understand it, we need to fit frequency amount of waves inside the 
+		// buffer of size samplerate. So i * increment stretches the wave to accomplish
+		// this.
+		constexpr double increment = frequency/SAMPLERATE;
+		for (auto i = 0; i < SAMPLES; i++) {
+			rawBuffer[i] = amplitude * (sin(i * increment * twoPI) > 0);
+		}
+	}
+
+	// fills sample buffer with sine wave
+	void generateSineWaveSamples() {
+		constexpr uint32_t amplitude = 30000;
+		constexpr double twoPI = 6.28318;
+		constexpr double frequency = 440;
+		constexpr double increment = frequency/SAMPLERATE;
+		for (unsigned i = 0; i < SAMPLES; i++) {
+			rawBuffer[i] = amplitude * sin(i * increment * twoPI);
 		}
 	}
 };

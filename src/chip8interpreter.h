@@ -96,7 +96,6 @@ public:
 	};
 
 	static void CLS(Chip8& core, uint16_t instr) { //0x00E0
-		//core.framebuffer.fill(0);
 		core.display.fill(0);
 	}
 

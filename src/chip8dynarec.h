@@ -27,7 +27,7 @@ public:
 		//printf("%04X\n", core.pc);
 
 		auto& page = blockPageTable[core.pc >> pageShift];
-		if (!page) [[unlikely]] {  // if page hasn't been allocated yet, allocate
+		if (!page) [[unlikely]] {      // if page hasn't been allocated yet, allocate
 			page = new fp[pageSize](); //blocks could be half the size, but I'm not sure about alignment
 		}
 
@@ -49,10 +49,8 @@ public:
 		auto jumpOccured = false;
 
 		// Function prologue
-		code.mov(r8, dynarecPC); // DEBUG: store pc in block to lookup in a decompiler
 		code.push(rbp);
 		code.mov(rbp, (uintptr_t)&core); //Load cpu state
-		code.sub(rsp, 40); //permanently align stack for all function calls in block
 
 		while (true) {
 			auto instr = core.read<uint16_t>(dynarecPC);
@@ -98,9 +96,9 @@ public:
 			case 0xA: emitLDI(core, instr);                                     break;
 			case 0xB: emitJPV0(core, instr); jumpOccured = true;                break;
 			case 0xC: emitRNDVxByte(core, instr);                               break;
-			//case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);        break;
-			case 0xD: emitDXYN(core, instr); break;
-			//case 0xD: emitOldDXYN(core, instr); break;
+			//case 0xD: emitFallback(Chip8Interpreter::DXYN, core, instr);      break;
+			case 0xD: emitDXYN(core, instr);                                    break;
+			//case 0xD: emitOldDXYN(core, instr);                               break;
 			case 0xE:
 				switch (instr & 0xff) {
 				case 0x9E: emitSKPVx(core, instr, cycles * 2);  jumpOccured = true; break;
@@ -151,7 +149,6 @@ public:
 			code.add(word[rbp + getOffset(core, &core.pc)], cycles * 2);
 		}
 
-		code.add(rsp, 40); // restore stack to original position
 		code.pop(rbp);
 		code.mov(eax, cycles); // set return value as cycles taken in block
 		code.ret();
@@ -502,8 +499,6 @@ public:
 		code.mov(word[rbp + getOffset(core, &core.index)], cx);
 	}
 
-	//TODO: invalidate range function in assembly
-
 	static void emitLDVxK(Chip8& core, uint16_t instr, uint16_t PCIncrement) { //0xFx0A
 		Xbyak::Label label1;
 		Xbyak::Label label2;
@@ -532,11 +527,6 @@ public:
 	}
 
 	static void emitLDBVx(Chip8& core, uint16_t instr) { //0xFx33
-		// code.mov(cl, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
-		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index])], cl / 100);
-		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index + 1])], (cl / 10) % 100);
-		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index + 2])], cl % 10);
-		//emitFallback(Chip8Interpreter::LDBVx, core, instr);
 		// eax: gpr / 100;
 		// ecx: gpr / 10 % 10
 		// edx: gpr % 10

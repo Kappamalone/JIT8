@@ -4,7 +4,6 @@
 #include <jitcommon.h>
 
 // This is literally just a copy of the chip8dynarec with some small changes
-
 #define getidentifier(op) (((op) & 0xf000) >> 12)
 #define getaddr(op) ((op) & 0xfff)
 #define getkk(op) ((op) & 0xff)
@@ -51,15 +50,13 @@ public:
 		auto cycles = 0;
 		auto dynarecPC = pc;
 		auto jumpOccured = false;
+		auto invalidInstruction = false;
 
 		// Function prologue
-		code.mov(r8, dynarecPC); // DEBUG: store pc in block to lookup in a decompiler
 		code.push(rbp);
 		code.mov(rbp, (uintptr_t)&core); //Load cpu state
-		code.sub(rsp, 40); //permanently align stack for all function calls in block
 
 		while (true) {
-
 			auto instr = core.read<uint16_t>(dynarecPC);
 			dynarecPC += 2;
 			++cycles;
@@ -71,7 +68,7 @@ public:
 				case 0x0E0: emitCLS(core, instr);                     break;
 				case 0x0EE: emitRET(core, instr); jumpOccured = true; break;
 				default:
-					goto exit;
+					invalidInstruction = true;
 					break;
 				}
 
@@ -95,7 +92,7 @@ public:
 				case 0x7: emitSUBNVxVy(core, instr); break;
 				case 0xE: emitSHLVxVy(core, instr);  break;
 				default:
-					goto exit;
+					invalidInstruction = true;
 					break;
 				}
 
@@ -111,7 +108,7 @@ public:
 				case 0x9E: emitSKPVx(core, instr, cycles * 2);  jumpOccured = true; break;
 				case 0xA1: emitSKNPVx(core, instr, cycles * 2); jumpOccured = true; break;
 				default:
-					goto exit;
+					invalidInstruction = true;
 					break;
 				}
 
@@ -126,32 +123,30 @@ public:
 				case 0x29: emitLDFVx(core, instr);                                 break;
 				case 0x33:
 					emitLDBVx(core, instr);
-					//emitInvalidateRange(core, 3);
+					emitInvalidateRange(core, 3);
 					break;
 				case 0x55: {
 					emitLDIVx(core, instr);
-					//emitInvalidateRange(core, getx(instr) + 1);
+					emitInvalidateRange(core, getx(instr) + 1);
 					break;
 				}
 				case 0x65: emitLDVxI(core, instr); break;
 				default:
-					goto exit;
+					invalidInstruction = true;
 					break;
 				}
 
 				break;
 			default:
-				goto exit;
+				invalidInstruction = true;
 				break;
 			}
 
 			//This won't work on unaligned PC's
-			if ((dynarecPC & (pageSize - 1)) == 0 || jumpOccured) { //If we exceed the page boundary, dip
+			if ((dynarecPC & (pageSize - 1)) == 0 || jumpOccured || invalidInstruction) { //If we exceed the page boundary, dip
 				break;
 			}
 		}
-
-	exit:
 
 		//Function epilogue
 		if (!jumpOccured) {
@@ -176,7 +171,6 @@ public:
 	}
 
 	static void emitFallback(interpreterfp fallback, Chip8& core, uint16_t instr) {
-		//code.add(word[rbp + getOffset(core, &core.pc)], 2);
 		code.mov(rax, (uintptr_t)fallback);
 		code.mov(rcx, (uintptr_t)&core);
 		code.mov(edx, instr);
@@ -479,8 +473,6 @@ public:
 		code.mov(word[rbp + getOffset(core, &core.index)], cx);
 	}
 
-	//TODO: invalidate range function in assembly
-
 	static void emitLDVxK(Chip8& core, uint16_t instr, uint16_t PCIncrement) { //0xFx0A
 		Xbyak::Label label1;
 		Xbyak::Label label2;
@@ -509,11 +501,22 @@ public:
 	}
 
 	static void emitLDBVx(Chip8& core, uint16_t instr) { //0xFx33
-		// code.mov(cl, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
-		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index])], cl / 100);
-		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index + 1])], (cl / 10) % 100);
-		// code.mov(byte[rbp + getOffset(core, &core.ram[core.index + 2])], cl % 10);
-		emitFallback(Chip8Interpreter::LDBVx, core, instr);
+		// eax: gpr / 100;
+		// ecx: gpr / 10 % 10
+		// edx: gpr % 10
+		// r8: core.index
+		// r9d: divisor
+		code.movzx(r8, word[rbp + getOffset(core, &core.index)]);
+		code.mov(r9d, 10);
+
+		code.movzx(eax, byte[rbp + getOffset(core, &core.gpr[getx(instr)])]);
+		code.xor_(edx, edx); //clear high dword
+		code.div(r9d); // gpr / 10 in eax, gpr % 10 in edx
+		code.mov(byte[rbp + getOffset(core, core.ram.data()) + r8 + 2], dl); // write gpr % 10 into ram[index + 2]
+		code.xor_(edx, edx); //clear high dword
+		code.div(r9d); // gpr / 100 in eax, (gpr / 10) % 10 in edx
+		code.mov(byte[rbp + getOffset(core, core.ram.data()) + r8], al); // write gpr % 10 into ram[index + 2]
+		code.mov(byte[rbp + getOffset(core, core.ram.data()) + r8 + 1], dl); // write gpr % 10 into ram[index + 2]
 	}
 
 	static void emitLDIVx(Chip8& core, uint16_t instr) { //0xFx55

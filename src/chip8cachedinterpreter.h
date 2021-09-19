@@ -40,7 +40,6 @@ public:
 		auto dynarecPC = core.pc;
 
 		// Function prologue
-		code.mov(r8, dynarecPC); // DEBUG: store pc in block to lookup in a decompiler
 		code.push(rbp);
 		code.mov(rbp, (uintptr_t)&core); //Load cpu state
 		code.sub(rsp, 40); //permanently align stack for all function calls in block
